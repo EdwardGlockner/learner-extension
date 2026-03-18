@@ -19,12 +19,24 @@ import { loadState, replaceState } from "../storage/state";
 
 async function importTopics(titles: string[]) {
   const state = await loadState();
-  const existingTitles = new Set(state.topics.map((topic) => normalizeTitle(topic.title)));
   const now = new Date().toISOString();
-  const drafts = titles
+  const existingTopicsByTitle = new Map(state.topics.map((topic) => [normalizeTitle(topic.title), topic]));
+  const incomingTitleEntries = titles
     .map((title) => title.trim())
     .filter(Boolean)
-    .filter((title) => !existingTitles.has(normalizeTitle(title)))
+    .map((title) => [normalizeTitle(title), title] as const);
+  const uniqueIncomingTitles = new Map(incomingTitleEntries);
+  const normalizedIncomingTitles = [...uniqueIncomingTitles.keys()];
+  const titlesToCreate = normalizedIncomingTitles
+    .filter((normalizedTitle) => !existingTopicsByTitle.has(normalizedTitle))
+    .map((normalizedTitle) => uniqueIncomingTitles.get(normalizedTitle) ?? normalizedTitle);
+  const titlesToReactivate = normalizedIncomingTitles.filter((normalizedTitle) => {
+    const existingTopic = existingTopicsByTitle.get(normalizedTitle);
+    return Boolean(existingTopic && existingTopic.status !== "active");
+  });
+  const drafts = titlesToCreate
+    .map((title) => title.trim())
+    .filter(Boolean)
     .map((title, index) => {
       const suggestion = inferTopicSuggestion(title);
       return {
@@ -60,11 +72,32 @@ async function importTopics(titles: string[]) {
       .filter((value): value is string => Boolean(value))
   }));
 
-  if (created.length) {
-    await replaceState({ ...state, topics: [...state.topics, ...created] });
+  if (created.length || titlesToReactivate.length) {
+    const reactivatedIds = new Set(
+      titlesToReactivate
+        .map((normalizedTitle) => existingTopicsByTitle.get(normalizedTitle)?.id)
+        .filter((value): value is string => Boolean(value))
+    );
+    let nextOrderIndex = state.topics.length;
+    const nextTopics = state.topics.map((topic) => {
+      if (!reactivatedIds.has(topic.id)) {
+        return topic;
+      }
+
+      return {
+        ...topic,
+        status: "active" as const,
+        manuallyOrderedIndex: nextOrderIndex++,
+        updatedAt: now
+      };
+    });
+
+    await replaceState({ ...state, topics: [...nextTopics, ...created] });
   }
 
-  return created;
+  return {
+    addedCount: created.length + titlesToReactivate.length
+  };
 }
 
 browserApi.runtime.onInstalled.addListener(async (details: Runtime.OnInstalledDetailsType) => {
@@ -113,7 +146,7 @@ browserApi.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
       return { success: true };
     case "topics/import":
       return {
-        createdCount: (await importTopics(message.titles)).length,
+        createdCount: (await importTopics(message.titles)).addedCount,
         dashboard: await loadDashboardData()
       };
     default:

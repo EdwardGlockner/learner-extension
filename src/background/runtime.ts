@@ -79,6 +79,52 @@ function sameTopicIds(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function laterIsoDate(left?: string, right?: string): string | undefined {
+  if (!left) {
+    return right;
+  }
+
+  if (!right) {
+    return left;
+  }
+
+  return left >= right ? left : right;
+}
+
+function mergeTouchedTopics(latestTopics: Topic[], touchedTopics: Topic[], touchedTopicIds: string[]): Topic[] {
+  const touchedIds = new Set(touchedTopicIds);
+  const touchedMap = new Map(touchedTopics.map((topic) => [topic.id, topic]));
+
+  return latestTopics.map((topic) => {
+    if (!touchedIds.has(topic.id)) {
+      return topic;
+    }
+
+    const touchedTopic = touchedMap.get(topic.id);
+
+    if (!touchedTopic) {
+      return topic;
+    }
+
+    return {
+      ...topic,
+      timesShown: Math.max(topic.timesShown, touchedTopic.timesShown),
+      lastShownAt: laterIsoDate(topic.lastShownAt, touchedTopic.lastShownAt),
+      updatedAt: laterIsoDate(topic.updatedAt, touchedTopic.updatedAt) ?? topic.updatedAt
+    };
+  });
+}
+
+function mergeLessons(existingLessons: LessonGeneration[], newLessons: LessonGeneration[]): LessonGeneration[] {
+  const byId = new Map(existingLessons.map((lesson) => [lesson.id, lesson]));
+
+  for (const lesson of newLessons) {
+    byId.set(lesson.id, lesson);
+  }
+
+  return [...byId.values()].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
 function getVisibleTopicIds(state: ExtensionState): string[] {
   return selectVisibleTopics(
     state.topics.filter((topic) => topic.status !== "learned" && topic.status !== "paused")
@@ -194,7 +240,7 @@ export async function loadDashboardData(dateKey = getDateKey()): Promise<Dashboa
 
 async function ensureDashboardDataInternal(dateKey: string, shouldGenerateMissing: boolean): Promise<DashboardData> {
   let state = await loadState();
-  const visibleTopicIds = getVisibleTopicIds(state);
+  let visibleTopicIds = getVisibleTopicIds(state);
   const previouslyShownIds = new Set(
     state.topics.filter((topic) => topic.lastShownAt && topic.status !== "learned").map((topic) => topic.id)
   );
@@ -241,12 +287,24 @@ async function ensureDashboardDataInternal(dateKey: string, shouldGenerateMissin
         });
       }
     }
+    const latestState = await loadState();
+    const nextState = {
+      ...latestState,
+      topics: mergeTouchedTopics(latestState.topics, state.topics, nextTopicIdsToTouch),
+      lessons: mergeLessons(latestState.lessons, newLessons),
+      generationAttempts: state.generationAttempts
+    };
+
+    state = nextState;
+  } else if (nextTopicIdsToTouch.length) {
+    const latestState = await loadState();
     state = {
-      ...state,
-      lessons: [...state.lessons, ...newLessons]
+      ...latestState,
+      topics: mergeTouchedTopics(latestState.topics, state.topics, nextTopicIdsToTouch)
     };
   }
 
+  visibleTopicIds = getVisibleTopicIds(state);
   await replaceState(state);
 
   return {
@@ -281,10 +339,14 @@ export async function refreshLesson(topicId: string, dateKey = getDateKey()): Pr
   if (!nextLesson) {
     throw new Error("Add a provider API key in Settings before generating lessons.");
   }
-  const replacedLessons = state.lessons.filter((lesson) => !(lesson.topicId === topicId && lesson.dateKey === dateKey));
+  const latestState = await loadState();
+  const clearedState = clearGenerationAttempt(latestState, topicId, dateKey, nextLesson.providerId as ProviderId);
+  const replacedLessons = clearedState.lessons.filter(
+    (lesson) => !(lesson.topicId === topicId && lesson.dateKey === dateKey)
+  );
 
   await replaceState({
-    ...clearGenerationAttempt(state, topicId, dateKey, nextLesson.providerId as ProviderId),
+    ...clearedState,
     lessons: [...replacedLessons, nextLesson]
   });
 
