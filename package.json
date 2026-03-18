@@ -1,0 +1,32 @@
+{
+  "name": "learning-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A production-minded cross-browser WebExtensions MV3 extension for daily learning.",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build && node scripts/write-manifest.mjs chrome",
+    "build:chrome": "vite build && node scripts/write-manifest.mjs chrome",
+    "build:firefox": "vite build && node scripts/write-manifest.mjs firefox",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "webextension-polyfill": "^0.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.10",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@types/webextension-polyfill": "^0.10.7",
+    "@vitejs/plugin-react": "^4.4.1",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  }
+}
