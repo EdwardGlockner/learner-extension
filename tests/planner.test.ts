@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDailyPlan, scoreTopic, selectDailyTopics } from "../src/domain/planner";
+import { buildDailyPlan, scoreTopic, selectDailyTopics, selectVisibleTopics, sortTopicsByLearningOrder } from "../src/domain/planner";
 import { inferTopicSuggestion } from "../src/domain/topicInference";
 import { createId } from "../src/lib/id";
 import { normalizeTitle } from "../src/lib/strings";
@@ -67,6 +67,16 @@ describe("planner", () => {
     }
   });
 
+  it("keeps directly related prerequisite topics close together in queue order", () => {
+    const state = cloneState();
+    const ordered = sortTopicsByLearningOrder(state.topics).map((topic) => topic.title);
+
+    expect(ordered.indexOf("Context")).toBeLessThan(ordered.indexOf("Attention"));
+    expect(ordered.indexOf("Attention") - ordered.indexOf("Context")).toBe(1);
+    expect(ordered.indexOf("Docker")).toBeLessThan(ordered.indexOf("Kubernetes"));
+    expect(ordered.indexOf("Kubernetes") - ordered.indexOf("Docker")).toBe(1);
+  });
+
   it("uses variety penalties to avoid clustering the same category when alternatives exist", () => {
     const state = cloneState();
     state.settings.scheduling.dailyTopicCount = 2;
@@ -101,5 +111,27 @@ describe("planner", () => {
 
     const plan = buildDailyPlan(state, "2026-03-18");
     expect(plan.reasons.some((reason) => reason.topicId === docker.id && reason.reviewCandidate)).toBe(true);
+  });
+
+  it("does not immediately reschedule a recently learned topic", () => {
+    const state = cloneState();
+    state.settings.scheduling.dailyTopicCount = 2;
+
+    const context = getTopic(state, "Context");
+    context.timesLearned = 1;
+    context.status = "learned";
+    context.lastLearnedAt = "2026-03-17T09:00:00.000Z";
+    context.lastShownAt = "2026-03-17T09:00:00.000Z";
+
+    const selected = selectDailyTopics(state, "2026-03-18").map((item) => item.topic.title);
+    expect(selected).not.toContain("Context");
+  });
+
+  it("mixes visible cards when the queue has a strong alternative subject", () => {
+    const state = cloneState();
+    const visible = selectVisibleTopics(state.topics, 2).map((topic) => topic.title);
+
+    expect(visible[0]).toBe("Context");
+    expect(visible[1]).toBe("Docker");
   });
 });

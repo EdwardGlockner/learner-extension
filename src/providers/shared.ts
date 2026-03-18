@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS } from "../shared/constants";
+import { getCuratedResources } from "../domain/resources";
 import type { ProviderId, ProviderLessonRequest, ProviderLessonResult, ResourceLink } from "../shared/types";
 
 export function renderPromptTemplate(template: string, request: ProviderLessonRequest): string {
@@ -42,8 +43,14 @@ function stripJsonCodeFence(raw: string): string {
   return trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 }
 
-export function parseJsonLesson(raw: string, providerId: ProviderId, model: string): ProviderLessonResult {
+export function parseJsonLesson(
+  raw: string,
+  providerId: ProviderId,
+  model: string,
+  request: ProviderLessonRequest
+): ProviderLessonResult {
   const parsed = JSON.parse(stripJsonCodeFence(raw)) as Record<string, unknown>;
+  const generatedResources = normalizeResources(parsed.resources);
 
   return {
     providerId,
@@ -55,6 +62,6 @@ export function parseJsonLesson(raw: string, providerId: ProviderId, model: stri
     nextSteps: Array.isArray(parsed.nextSteps)
       ? parsed.nextSteps.filter((value): value is string => typeof value === "string")
       : [],
-    resources: normalizeResources(parsed.resources)
+    resources: getCuratedResources(request.topic, generatedResources)
   };
 }

@@ -19,7 +19,7 @@ export type LessonStatus =
   | "learned"
   | "review";
 export type ThemePreference = "system" | "light" | "dark";
-export type ProviderId = "openai" | "gemini";
+export type ProviderId = "openai" | "gemini" | "ollama";
 
 export interface ResourceLink {
   title: string;
@@ -112,6 +112,8 @@ export interface ProviderSettings {
   openAiModel: string;
   geminiApiKey: string;
   geminiModel: string;
+  ollamaBaseUrl: string;
+  ollamaModel: string;
   contentLength: "compact" | "balanced" | "deep";
   difficultyPreference: "beginner" | "mixed" | "advanced";
   promptTemplate: string;
@@ -173,6 +175,6 @@ export interface BackgroundResponse<T> {
 
 export interface DashboardData {
   state: ExtensionState;
-  todaysPlan: DailyPlan | null;
-  todaysLessons: LessonGeneration[];
+  visibleTopicIds: string[];
+  visibleLessons: LessonGeneration[];
 }

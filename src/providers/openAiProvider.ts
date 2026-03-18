@@ -102,6 +102,6 @@ export const openAiProvider: LessonProvider = {
       throw new Error(`OpenAI returned no lesson content. Prompt version: ${PROMPT_TEMPLATE_VERSION}`);
     }
 
-    return parseJsonLesson(raw, "openai", model);
+    return parseJsonLesson(raw, "openai", model, request);
   }
 };

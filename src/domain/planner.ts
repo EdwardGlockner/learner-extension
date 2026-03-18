@@ -31,39 +31,83 @@ function compareTopicsByBaseOrder(left: Topic, right: Topic): number {
   );
 }
 
+function sharedTagCount(left: Topic, right: Topic): number {
+  return left.tags.filter((tag) => right.tags.includes(tag)).length;
+}
+
 export function sortTopicsByLearningOrder(topics: Topic[]): Topic[] {
   const topicMap = new Map(topics.map((topic) => [topic.id, topic]));
-  const dependencies = new Map<string, string[]>();
+  const dependencies = new Map<string, Set<string>>();
   const indegree = new Map<string, number>();
-  const adjacency = new Map<string, string[]>();
+  const adjacency = new Map<string, Set<string>>();
 
   for (const topic of topics) {
     const prerequisiteIds = inferEffectivePrerequisites(topic, topics).filter((dependencyId) => topicMap.has(dependencyId));
-    dependencies.set(topic.id, prerequisiteIds);
+    dependencies.set(topic.id, new Set(prerequisiteIds));
     indegree.set(topic.id, prerequisiteIds.length);
 
     for (const dependencyId of prerequisiteIds) {
-      const dependents = adjacency.get(dependencyId) ?? [];
-      dependents.push(topic.id);
+      const dependents = adjacency.get(dependencyId) ?? new Set<string>();
+      dependents.add(topic.id);
       adjacency.set(dependencyId, dependents);
     }
   }
 
-  const ready = topics
-    .filter((topic) => (indegree.get(topic.id) ?? 0) === 0)
-    .sort(compareTopicsByBaseOrder);
+  const ready = topics.filter((topic) => (indegree.get(topic.id) ?? 0) === 0);
   const ordered: Topic[] = [];
 
   while (ready.length) {
-    const current = ready.shift();
+    const recentTopics = ordered.slice(-2);
+    const current = [...ready].sort((left, right) => {
+      const lastTopic = recentTopics[recentTopics.length - 1];
+      const leftUnlocks = adjacency.get(left.id)?.size ?? 0;
+      const rightUnlocks = adjacency.get(right.id)?.size ?? 0;
+
+      const score = (candidate: Topic): number => {
+        let candidateScore = leftUnlocks;
+        const unlocks = adjacency.get(candidate.id)?.size ?? 0;
+        candidateScore = unlocks * 2 - candidate.difficulty;
+
+        if (lastTopic) {
+          const directDependency = dependencies.get(candidate.id)?.has(lastTopic.id) ?? false;
+
+          if (directDependency) {
+            candidateScore += 20;
+          }
+
+          const sameCategory = candidate.category === lastTopic.category;
+          const sharedTags = sharedTagCount(candidate, lastTopic);
+
+          if (sameCategory && !directDependency) {
+            candidateScore -= 5;
+          } else if (!sameCategory) {
+            candidateScore += 5;
+          }
+
+          candidateScore += sharedTags * 2;
+
+          const recentSameCategoryCount = recentTopics.filter((topic) => topic.category === candidate.category).length;
+
+          if (recentSameCategoryCount > 0 && !directDependency) {
+            candidateScore -= recentSameCategoryCount * 3;
+          }
+        }
+
+        candidateScore -= candidate.manuallyOrderedIndex / 100;
+        return candidateScore;
+      };
+
+      return score(right) - score(left) || compareTopicsByBaseOrder(left, right);
+    })[0];
 
     if (!current) {
       break;
     }
 
     ordered.push(current);
+    ready.splice(ready.findIndex((candidate) => candidate.id === current.id), 1);
 
-    for (const dependentId of adjacency.get(current.id) ?? []) {
+    for (const dependentId of adjacency.get(current.id) ?? new Set<string>()) {
       const nextDegree = (indegree.get(dependentId) ?? 0) - 1;
       indegree.set(dependentId, nextDegree);
 
@@ -72,7 +116,6 @@ export function sortTopicsByLearningOrder(topics: Topic[]): Topic[] {
 
         if (dependent) {
           ready.push(dependent);
-          ready.sort(compareTopicsByBaseOrder);
         }
       }
     }
@@ -87,6 +130,48 @@ export function sortTopicsByLearningOrder(topics: Topic[]): Topic[] {
     .sort(compareTopicsByBaseOrder);
 
   return [...ordered, ...remaining];
+}
+
+export function selectVisibleTopics(topics: Topic[], count = 2): Topic[] {
+  const ordered = sortTopicsByLearningOrder(topics);
+
+  if (ordered.length <= count) {
+    return ordered;
+  }
+
+  const selected = [ordered[0]];
+
+  while (selected.length < count) {
+    const lastSelected = selected[selected.length - 1];
+    const remaining = ordered.filter((topic) => !selected.some((candidate) => candidate.id === topic.id));
+
+    const next = [...remaining].sort((left, right) => {
+      const score = (candidate: Topic): number => {
+        const index = ordered.findIndex((topic) => topic.id === candidate.id);
+        let candidateScore = 20 - index * 3;
+
+        if (candidate.category !== lastSelected.category) {
+          candidateScore += 10;
+        } else {
+          candidateScore -= 8;
+        }
+
+        const tagOverlap = sharedTagCount(candidate, lastSelected);
+        candidateScore -= tagOverlap * 2;
+        return candidateScore;
+      };
+
+      return score(right) - score(left) || compareTopicsByBaseOrder(left, right);
+    })[0];
+
+    if (!next) {
+      break;
+    }
+
+    selected.push(next);
+  }
+
+  return selected;
 }
 
 export function prerequisitesSatisfied(
@@ -178,6 +263,13 @@ export function scoreTopic(
   return { topic, score, reviewCandidate, varietyPenalty, rationale };
 }
 
+function isReviewCandidate(topic: Topic, state: ExtensionState, dateKey: string): boolean {
+  const daysSinceLearned = getDaysBetween(topic.lastLearnedAt, dateKey);
+  const reviewInterval = Math.max(4, Math.round(10 - state.settings.scheduling.reviewFrequency * 10));
+
+  return topic.timesLearned > 0 && Number.isFinite(daysSinceLearned) && daysSinceLearned >= reviewInterval;
+}
+
 export function selectDailyTopics(state: ExtensionState, dateKey: string): TopicScoreBreakdown[] {
   const topics = sortTopicsByLearningOrder([...state.topics]);
   const lessons = state.lessons;
@@ -190,7 +282,10 @@ export function selectDailyTopics(state: ExtensionState, dateKey: string): Topic
   while (selected.length < desiredCount) {
     const pickedIds = new Set(selected.map((candidate) => candidate.topic.id));
     const eligible = topics.filter(
-      (topic) => !pickedIds.has(topic.id) && prerequisitesSatisfied(topic, topics, learnedIds, pickedIds)
+      (topic) =>
+        !pickedIds.has(topic.id) &&
+        prerequisitesSatisfied(topic, topics, learnedIds, pickedIds) &&
+        (topic.timesLearned === 0 || isReviewCandidate(topic, state, dateKey))
     );
 
     if (!eligible.length) {

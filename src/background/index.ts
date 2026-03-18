@@ -7,6 +7,7 @@ import { normalizeTitle } from "../lib/strings";
 import {
   bootstrapExtension,
   ensureDashboardData,
+  loadDashboardData,
   openDashboard,
   validateProviderConnection,
   refreshLesson,
@@ -16,7 +17,7 @@ import {
 } from "./runtime";
 import { loadState, replaceState } from "../storage/state";
 
-async function importTopics(titles: string[]): Promise<MessagePayloads["topics/import"]> {
+async function importTopics(titles: string[]) {
   const state = await loadState();
   const existingTitles = new Set(state.topics.map((topic) => normalizeTitle(topic.title)));
   const now = new Date().toISOString();
@@ -91,13 +92,15 @@ browserApi.alarms.onAlarm.addListener(async (alarm) => {
 browserApi.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
   switch (message.type) {
     case "dashboard/load":
+      return loadDashboardData();
     case "dashboard/refresh":
+    case "dashboard/generate-missing":
       return ensureDashboardData();
     case "lessons/refresh-topic":
       return refreshLesson(message.topicId);
     case "lessons/update-status":
       await updateLessonStatus(message.lessonId, message.status);
-      return ensureDashboardData();
+      return loadDashboardData();
     case "settings/reschedule-reminder": {
       await scheduleReminder();
       const state = await loadState();
@@ -109,7 +112,10 @@ browserApi.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
       await sendReminderNotification(true);
       return { success: true };
     case "topics/import":
-      return importTopics(message.titles);
+      return {
+        createdCount: (await importTopics(message.titles)).length,
+        dashboard: await loadDashboardData()
+      };
     default:
       return undefined;
   }

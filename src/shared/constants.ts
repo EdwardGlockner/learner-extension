@@ -48,11 +48,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
     lastNotificationStatus: "idle"
   },
   provider: {
-    selectedProvider: "gemini",
+    selectedProvider: "ollama",
     openAiApiKey: "",
     openAiModel: "gpt-4.1-mini",
     geminiApiKey: "",
     geminiModel: "gemini-2.5-flash-lite",
+    ollamaBaseUrl: "http://127.0.0.1:11434",
+    ollamaModel: "gemma3",
     contentLength: "balanced",
     difficultyPreference: "mixed",
     promptTemplate: DEFAULT_PROMPT_TEMPLATE

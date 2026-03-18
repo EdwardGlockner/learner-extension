@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { openExtensionPopupWindow } from "../../lib/browserApi";
+import { openExtensionPopupWindow, openExternalUrl } from "../../lib/browserApi";
+import { getCuratedResources } from "../../domain/resources";
 import { sortTopicsByLearningOrder } from "../../domain/planner";
 import { sendBackgroundMessage } from "../../lib/messages";
-import { getProviderLabel, getSelectedProviderApiKey } from "../../providers";
+import { getProviderLabel, isSelectedProviderConfigured } from "../../providers";
 import { applyTheme } from "../../lib/theme";
 import { titleFromLines } from "../../lib/strings";
 import { CATEGORY_LABELS } from "../../shared/constants";
@@ -25,6 +26,17 @@ type TopicLessonCard = {
   topic: Topic;
   lesson: LessonGeneration;
 };
+
+type VisibleCardSlot =
+  | {
+      type: "lesson";
+      topic: Topic;
+      lesson: LessonGeneration;
+    }
+  | {
+      type: "loading";
+      topic: Topic;
+    };
 
 function formatRetryMessage(nextRetryAt?: string): string | null {
   if (!nextRetryAt) {
@@ -76,9 +88,14 @@ function DailyCard({
         {resources.length ? (
           <div className="resource-inline-row">
             {resources.slice(0, 2).map((resource) => (
-              <a key={resource.url} href={resource.url} target="_blank" rel="noreferrer" className="inline-link">
+              <button
+                key={resource.url}
+                type="button"
+                className="inline-link inline-link-button"
+                onClick={() => void openExternalUrl(resource.url)}
+              >
                 {resource.title}
-              </a>
+              </button>
             ))}
           </div>
         ) : null}
@@ -92,8 +109,30 @@ function DailyCard({
   );
 }
 
+function LoadingCard({ topic }: { topic: Topic }) {
+  return (
+    <article className="daily-card daily-card-loading" aria-live="polite">
+      <div className="daily-card-header">
+        <div>
+          <p className="mini-label">{CATEGORY_LABELS[topic.category]}</p>
+          <h2>{topic.title}</h2>
+        </div>
+      </div>
+      <div className="daily-card-loading-body">
+        <div className="loading-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        <p>Generating lesson...</p>
+      </div>
+    </article>
+  );
+}
+
 export function DashboardPage() {
-  const { data, loading, error, refresh, regenerateLesson, updateLessonStatus } = useDashboardData();
+  const { data, setData, loading, generating, error, reload, refresh, regenerateLesson, updateLessonStatus } =
+    useDashboardData();
   const [newTopicInput, setNewTopicInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [isSubmittingTopic, setIsSubmittingTopic] = useState(false);
@@ -139,13 +178,45 @@ export function DashboardPage() {
       return [];
     }
 
-    return data.todaysLessons
+    return data.visibleLessons
       .filter((lesson) => lesson.status !== "learned")
       .map((lesson) => {
         const topic = topicsById.get(lesson.topicId);
         return topic ? { topic, lesson } : null;
       })
       .filter((value): value is TopicLessonCard => Boolean(value))
+      .slice(0, 2);
+  }, [data, topicsById]);
+
+  const visibleCardSlots = useMemo<VisibleCardSlot[]>(() => {
+    if (!data) {
+      return [];
+    }
+
+    return data.visibleTopicIds
+      .map((topicId) => {
+        const topic = topicsById.get(topicId);
+
+        if (!topic) {
+          return null;
+        }
+
+        const lesson = data.visibleLessons.find((candidate) => candidate.topicId === topicId && candidate.status !== "learned");
+
+        if (lesson) {
+          return {
+            type: "lesson" as const,
+            topic,
+            lesson
+          };
+        }
+
+        return {
+          type: "loading" as const,
+          topic
+        };
+      })
+      .filter((value): value is VisibleCardSlot => Boolean(value))
       .slice(0, 2);
   }, [data, topicsById]);
 
@@ -167,19 +238,18 @@ export function DashboardPage() {
     );
   }
 
-  const { state, todaysPlan } = data;
+  const { state, visibleTopicIds } = data;
   const providerLabel = getProviderLabel(state.settings.provider.selectedProvider);
-  const hasProviderKey = Boolean(getSelectedProviderApiKey(state.settings.provider));
+  const hasProviderKey = isSelectedProviderConfigured(state.settings.provider);
   const todaysCardTopicIds = new Set(todaysTopicCards.map(({ topic }) => topic.id));
-  const pendingPlanTopics = (todaysPlan?.topicIds ?? [])
-    .filter((topicId) => !todaysCardTopicIds.has(topicId))
+  const pendingPlanTopics = visibleTopicIds
+    .filter((topicId) => !data.visibleLessons.some((lesson) => lesson.topicId === topicId && lesson.status !== "learned"))
     .map((topicId) => topicsById.get(topicId))
     .filter((topic): topic is Topic => Boolean(topic));
   const latestGenerationAttempt = state.settings.provider.selectedProvider
     ? state.generationAttempts
         .filter((attempt) => attempt.providerId === state.settings.provider.selectedProvider)
-        .filter((attempt) => attempt.dateKey === todaysPlan?.dateKey)
-        .filter((attempt) => todaysPlan?.topicIds.includes(attempt.topicId))
+        .filter((attempt) => visibleTopicIds.includes(attempt.topicId))
         .sort((left, right) => right.lastAttemptAt.localeCompare(left.lastAttemptAt))[0]
     : undefined;
   const retryMessage = formatRetryMessage(latestGenerationAttempt?.nextRetryAt);
@@ -191,8 +261,8 @@ export function DashboardPage() {
   const shouldShowLoadingState =
     hasProviderKey &&
     pendingPlanTopics.length > 0 &&
-    !todaysTopicCards.length &&
-    (loading || isSubmittingTopic);
+    !visibleCardSlots.length &&
+    (loading || generating || isSubmittingTopic || isRefreshing);
 
   async function handleQuickAdd(): Promise<void> {
     const titles = titleFromLines(newTopicInput);
@@ -204,10 +274,10 @@ export function DashboardPage() {
     setIsSubmittingTopic(true);
 
     try {
-      const created = await sendBackgroundMessage({ type: "topics/import", titles });
+      const result = await sendBackgroundMessage({ type: "topics/import", titles });
       setNewTopicInput("");
-      setToast(created.length ? "Topic added" : "Already exists");
-      await refresh();
+      setData(result.dashboard);
+      setToast(result.createdCount ? "Topic added" : "Already exists");
     } finally {
       setIsSubmittingTopic(false);
     }
@@ -225,7 +295,7 @@ export function DashboardPage() {
 
     await replaceState({ ...currentState, topics: nextTopics });
     setToast("Topic removed");
-    await refresh();
+    await reload();
   }
 
   async function handleRefresh(): Promise<void> {
@@ -285,20 +355,24 @@ export function DashboardPage() {
         </button>
       </section>
 
-      {hasProviderKey && todaysTopicCards.length ? (
+      {hasProviderKey && visibleCardSlots.length ? (
         <section className="daily-grid">
-          {todaysTopicCards.map(({ topic, lesson }) => (
-            <DailyCard
-              key={lesson.id}
-              title={topic.title}
-              category={CATEGORY_LABELS[topic.category]}
-              explanation={lesson.content.explanation}
-              examples={lesson.content.examples}
-              resources={lesson.content.resources}
-              disabled={pendingLessonIds.includes(lesson.id)}
-              onDone={() => handleFinishLesson(lesson.id)}
-            />
-          ))}
+          {visibleCardSlots.map((slot) =>
+            slot.type === "lesson" ? (
+              <DailyCard
+                key={slot.lesson.id}
+                title={slot.topic.title}
+                category={CATEGORY_LABELS[slot.topic.category]}
+                explanation={slot.lesson.content.explanation}
+                examples={slot.lesson.content.examples}
+                resources={getCuratedResources(slot.topic, slot.lesson.content.resources)}
+                disabled={pendingLessonIds.includes(slot.lesson.id)}
+                onDone={() => handleFinishLesson(slot.lesson.id)}
+              />
+            ) : (
+              <LoadingCard key={`loading-${slot.topic.id}`} topic={slot.topic} />
+            )
+          )}
         </section>
       ) : shouldShowLoadingState ? (
         <section className="loading-panel" aria-live="polite">
@@ -327,7 +401,7 @@ export function DashboardPage() {
                 ? retryMessage
                   ? `${latestGenerationAttempt.lastError} ${retryMessage}`
                   : latestGenerationAttempt.lastError
-                : todaysPlan?.topicIds.length
+                : visibleTopicIds.length
                   ? "Lesson generation did not complete yet."
                   : "Add one or two topics above to start building the daily queue."
               : `Open Settings and add a ${providerLabel} API key to generate lessons.`

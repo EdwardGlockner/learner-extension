@@ -213,10 +213,9 @@ export function ManagePage() {
     }
 
     const imported = await sendBackgroundMessage({ type: "topics/import", titles });
-    const nextState = await loadState();
-    setState(nextState);
+    setState(imported.dashboard.state);
     setBatchImport("");
-    setFlash(`Imported ${imported.length} new topics.`);
+    setFlash(`Imported ${imported.createdCount} new topics.`);
   }
 
   return (

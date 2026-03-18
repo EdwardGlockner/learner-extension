@@ -165,6 +165,6 @@ export const geminiProvider: LessonProvider = {
       throw new Error(`Gemini returned no lesson content. Prompt version: ${PROMPT_TEMPLATE_VERSION}.${suffix}`);
     }
 
-    return parseJsonLesson(raw, "gemini", model);
+    return parseJsonLesson(raw, "gemini", model, request);
   }
 };
