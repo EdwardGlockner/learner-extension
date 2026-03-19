@@ -67,7 +67,7 @@ const rules: ResourceRule[] = [
     match: /\bdocker\b/i,
     resources: [
       { title: "Docker overview", url: "https://docs.docker.com/get-started/docker-overview/", source: "docs" },
-      { title: "Docker concepts", url: "https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-docker/", source: "docs" }
+      { title: "Get started with Docker", url: "https://docs.docker.com/get-started/", source: "docs" }
     ]
   },
   {
@@ -148,6 +148,8 @@ function fallbackResources(topic: Topic): ResourceLink[] {
   ];
 }
 
+const resourceReachabilityCache = new Map<string, boolean>();
+
 function normalizeResourceTitle(title: string): string {
   return normalizeTitle(title)
     .replace(/\bon wikipedia\b/g, "")
@@ -216,4 +218,69 @@ export function getCuratedResources(topic: Topic, generated: ResourceLink[] = []
     seen.add(titleTopicKey);
     return true;
   }).slice(0, 3);
+}
+
+async function urlResponds(url: string): Promise<boolean> {
+  if (resourceReachabilityCache.has(url)) {
+    return resourceReachabilityCache.get(url) ?? false;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const headResponse = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: controller.signal
+    });
+
+    if (headResponse.ok) {
+      resourceReachabilityCache.set(url, true);
+      return true;
+    }
+  } catch {
+    // Some sites reject HEAD; fall through to GET.
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  const getController = new AbortController();
+  const getTimeoutId = setTimeout(() => getController.abort(), 5000);
+
+  try {
+    const getResponse = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: getController.signal
+    });
+    const ok = getResponse.ok;
+    resourceReachabilityCache.set(url, ok);
+    return ok;
+  } catch {
+    resourceReachabilityCache.set(url, false);
+    return false;
+  } finally {
+    clearTimeout(getTimeoutId);
+  }
+}
+
+export async function filterReachableResources(resources: ResourceLink[]): Promise<ResourceLink[]> {
+  const validResources: ResourceLink[] = [];
+
+  for (const resource of resources) {
+    if (!resource.url.startsWith("http")) {
+      continue;
+    }
+
+    if (await urlResponds(resource.url)) {
+      validResources.push(resource);
+    }
+
+    if (validResources.length >= 3) {
+      break;
+    }
+  }
+
+  return validResources;
 }

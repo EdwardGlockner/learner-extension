@@ -1,6 +1,7 @@
 import { openExtensionPopupWindow, browserApi } from "../lib/browserApi";
 import { createId } from "../lib/id";
 import { getDateKey, nextReminderAt } from "../lib/time";
+import { filterReachableResources } from "../domain/resources";
 import { selectVisibleTopics, sortTopicsByLearningOrder } from "../domain/planner";
 import { getProvider, isSelectedProviderConfigured } from "../providers";
 import { DASHBOARD_PATH, PROMPT_TEMPLATE_VERSION, REMINDER_ALARM_ID } from "../shared/constants";
@@ -54,7 +55,7 @@ async function generateLessonForTopic(
       examples: result.examples,
       pitfalls: result.pitfalls,
       nextSteps: result.nextSteps,
-      resources: result.resources
+      resources: await filterReachableResources(result.resources)
     },
     status: "new",
     createdAt: now,
@@ -275,6 +276,7 @@ export async function startDashboardGeneration(dateKey = getDateKey()): Promise<
 
 async function ensureDashboardDataInternal(dateKey: string, shouldGenerateMissing: boolean): Promise<DashboardData> {
   let state = await loadState();
+  let shouldPersistState = false;
   let visibleTopicIds = getVisibleTopicIds(state);
   const previouslyShownIds = new Set(
     state.topics.filter((topic) => topic.lastShownAt && topic.status !== "learned").map((topic) => topic.id)
@@ -286,6 +288,7 @@ async function ensureDashboardDataInternal(dateKey: string, shouldGenerateMissin
       ...state,
       topics: touchTopics(state.topics, nextTopicIdsToTouch)
     };
+    shouldPersistState = true;
   }
 
   const lessons = getVisibleLessons(state, visibleTopicIds);
@@ -327,16 +330,21 @@ async function ensureDashboardDataInternal(dateKey: string, shouldGenerateMissin
     };
 
     state = nextState;
+    shouldPersistState = true;
   } else if (nextTopicIdsToTouch.length) {
     const latestState = await loadState();
     state = {
       ...latestState,
       topics: mergeTouchedTopics(latestState.topics, state.topics, nextTopicIdsToTouch)
     };
+    shouldPersistState = true;
   }
 
   visibleTopicIds = getVisibleTopicIds(state);
-  await replaceState(state);
+
+  if (shouldPersistState) {
+    await replaceState(state);
+  }
 
   return {
     state,

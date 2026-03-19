@@ -1,7 +1,7 @@
 import type { AppSettings, TopicCategory } from "./types";
 
 export const STORAGE_KEY = "learning-plugin-state";
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 export const DASHBOARD_PATH = "dashboard.html";
 export const REMINDER_ALARM_ID = "daily-learning-reminder";
 export const PROMPT_TEMPLATE_VERSION = "v2";

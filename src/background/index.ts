@@ -74,13 +74,15 @@ async function importTopics(titles: string[]) {
   }));
 
   if (created.length || titlesToReactivate.length) {
+    const latestState = await loadState();
+    const latestTopicsByTitle = new Map(latestState.topics.map((topic) => [normalizeTitle(topic.title), topic]));
     const reactivatedIds = new Set(
       titlesToReactivate
-        .map((normalizedTitle) => existingTopicsByTitle.get(normalizedTitle)?.id)
+        .map((normalizedTitle) => latestTopicsByTitle.get(normalizedTitle)?.id)
         .filter((value): value is string => Boolean(value))
     );
-    let nextOrderIndex = state.topics.length;
-    const nextTopics = state.topics.map((topic) => {
+    let nextOrderIndex = latestState.topics.length;
+    const nextTopics = latestState.topics.map((topic) => {
       if (!reactivatedIds.has(topic.id)) {
         return topic;
       }
@@ -92,8 +94,15 @@ async function importTopics(titles: string[]) {
         updatedAt: now
       };
     });
+    const existingNormalizedTitles = new Set(nextTopics.map((topic) => normalizeTitle(topic.title)));
+    const safeCreated = created
+      .filter((topic) => !existingNormalizedTitles.has(topic.normalizedTitle))
+      .map((topic, index) => ({
+        ...topic,
+        manuallyOrderedIndex: nextOrderIndex + index
+      }));
 
-    await replaceState({ ...state, topics: [...nextTopics, ...created] });
+    await replaceState({ ...latestState, topics: [...nextTopics, ...safeCreated] });
   }
 
   return {

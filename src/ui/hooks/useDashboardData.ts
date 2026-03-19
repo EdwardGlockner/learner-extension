@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { selectVisibleTopics } from "../../domain/planner";
 import { sendBackgroundMessage } from "../../lib/messages";
 import { isSelectedProviderConfigured } from "../../providers";
@@ -30,18 +30,29 @@ export function useDashboardData() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastAutoGenerateKey, setLastAutoGenerateKey] = useState<string | null>(null);
+  const latestLoadSequenceRef = useRef(0);
 
   const load = useCallback(async (type: "dashboard/load" | "dashboard/refresh") => {
+    const loadSequence = latestLoadSequenceRef.current + 1;
+    latestLoadSequenceRef.current = loadSequence;
+
     try {
       setLoading(true);
       const nextData = await sendBackgroundMessage({ type });
-      setData(nextData);
-      setLastAutoGenerateKey(null);
-      setError(null);
+
+      if (latestLoadSequenceRef.current === loadSequence) {
+        setData(nextData);
+        setLastAutoGenerateKey(null);
+        setError(null);
+      }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Failed to load dashboard.");
+      if (latestLoadSequenceRef.current === loadSequence) {
+        setError(reason instanceof Error ? reason.message : "Failed to load dashboard.");
+      }
     } finally {
-      setLoading(false);
+      if (latestLoadSequenceRef.current === loadSequence) {
+        setLoading(false);
+      }
     }
   }, []);
 
