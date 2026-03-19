@@ -12,6 +12,7 @@ export default defineConfig({
     target: "es2022",
     rollupOptions: {
       input: {
+        about: new URL("./about.html", import.meta.url).pathname,
         dashboard: new URL("./dashboard.html", import.meta.url).pathname,
         manage: new URL("./manage.html", import.meta.url).pathname,
         history: new URL("./history.html", import.meta.url).pathname,

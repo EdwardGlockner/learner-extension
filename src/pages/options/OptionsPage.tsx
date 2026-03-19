@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { openExternalUrl } from "../../lib/browserApi";
+import { navigateCurrentExtensionPage, openExternalUrl } from "../../lib/browserApi";
 import { sendBackgroundMessage } from "../../lib/messages";
 import { applyTheme } from "../../lib/theme";
+import { DEFAULT_OLLAMA_MODEL } from "../../shared/constants";
 import type { AppSettings } from "../../shared/types";
 import { replaceState } from "../../storage/state";
 import { EmptyState } from "../../ui/components/EmptyState";
@@ -12,6 +13,7 @@ export function OptionsPage() {
   const [draft, setDraft] = useState<AppSettings | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
+  const [reminderStatus, setReminderStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (state) {
@@ -61,8 +63,8 @@ export function OptionsPage() {
   }
 
   async function handleTestReminder(): Promise<void> {
-    await sendBackgroundMessage({ type: "notifications/test" });
-    setFlash("Reminder sent.");
+    const result = await sendBackgroundMessage({ type: "notifications/test" });
+    setReminderStatus(result.message);
   }
 
   async function handleCheckConnection(): Promise<void> {
@@ -79,11 +81,16 @@ export function OptionsPage() {
   return (
     <div className="settings-shell">
       <header className="settings-header">
-        <div>
-          <p className="mini-label">learning-plugin</p>
-          <h1>Settings</h1>
+        <div className="settings-header-leading">
+          <button type="button" className="button button-ghost button-icon" aria-label="Back" onClick={() => navigateCurrentExtensionPage("dashboard.html")}>
+            &lt;
+          </button>
+          <div>
+            <p className="mini-label">learning-plugin</p>
+            <h1>Settings</h1>
+          </div>
         </div>
-        <button className="button button-primary" onClick={() => void handleSave()}>
+        <button type="button" className="button button-primary" onClick={() => void handleSave()}>
           Save
         </button>
       </header>
@@ -152,50 +159,59 @@ export function OptionsPage() {
                         selectedProvider: "ollama" as const,
                         ollamaModel: event.target.value
                       }
-                    });
-                  }
+                  });
                 }
-                placeholder="gemma3"
+              }
+                placeholder={DEFAULT_OLLAMA_MODEL}
               />
             </label>
-            <div className="helper-box">
-              <p className="compact-secondary">
-                New-user Ollama setup:
-              </p>
-              <ol className="compact-list compact-list-numbered">
-                <li>Install Ollama for Windows.</li>
-                <li>Open the Ollama app and leave it running in the tray.</li>
-                <li>In PowerShell, run <code>ollama pull gemma3</code>.</li>
-                <li>If the extension still cannot connect in Firefox, restart Ollama with extension origins enabled.</li>
-              </ol>
-              <div className="compact-actions">
-                <button className="button" onClick={() => void openExternalUrl("https://docs.ollama.com/windows")}>
-                  Ollama install guide
-                </button>
-                <button className="button" onClick={() => void openExternalUrl("https://docs.ollama.com/faq")}>
-                  Origin setup help
-                </button>
+            <div className="helper-box ollama-setup-box">
+              <div className="ollama-setup-copy">
+                <p className="mini-label">Ollama setup</p>
+                <strong>New-user local setup</strong>
+                <ol className="compact-list compact-list-numbered">
+                  <li>Install Ollama for Windows.</li>
+                  <li>Open the Ollama app and leave it running in the tray.</li>
+                  <li>Pull the model once from PowerShell.</li>
+                  <li>If the extension still cannot connect in Firefox, restart Ollama with extension origins enabled.</li>
+                </ol>
               </div>
-              <div className="field">
-                <span>PowerShell if Firefox access fails</span>
+              <div className="helper-box-tech ollama-command-box">
+                <p className="mini-label">PowerShell</p>
+                <strong>{`ollama pull ${DEFAULT_OLLAMA_MODEL}`}</strong>
+              </div>
+              <div className="ollama-fallback-block">
+                <span className="ollama-fallback-label">Firefox fallback</span>
+                <p className="compact-secondary">
+                  If the connection test still fails in Firefox, close Ollama and run these commands in PowerShell.
+                </p>
                 <textarea
+                  className="terminal-textarea"
                   readOnly
                   value={
                     '$env:OLLAMA_ORIGINS="chrome-extension://*,moz-extension://*,safari-web-extension://*"\nollama serve'
                   }
                 />
               </div>
+              <div className="compact-actions compact-actions-spaced ollama-doc-row">
+                <button type="button" className="button" onClick={() => void openExternalUrl("https://docs.ollama.com/windows")}>
+                  Install guide
+                </button>
+                <button type="button" className="button" onClick={() => void openExternalUrl("https://docs.ollama.com/faq")}>
+                  Origin help
+                </button>
+              </div>
             </div>
           </>
         )}
         <div className="compact-actions">
-          <button className="button" onClick={() => void handleCheckConnection()}>
+          <button type="button" className="button" onClick={() => void handleCheckConnection()}>
             Test connection
           </button>
         </div>
         <p className="compact-secondary">
           {selectedProvider === "ollama"
-            ? 'Run Ollama locally, then pull a model like "ollama pull gemma3".'
+            ? `Run Ollama locally, then pull a model like "ollama pull ${DEFAULT_OLLAMA_MODEL}".`
             : "Paste your Gemini API key here to generate lesson cards."}
         </p>
         {connectionStatus ? <p className="compact-secondary">{connectionStatus}</p> : null}
@@ -240,11 +256,15 @@ export function OptionsPage() {
           </label>
 
           <div className="compact-actions">
-            <button className="button" onClick={() => void handleTestReminder()}>
+            <button type="button" className="button" onClick={() => void handleTestReminder()}>
               Test reminder
             </button>
           </div>
         </div>
+        {reminderStatus ? <p className="compact-secondary">{reminderStatus}</p> : null}
+        <p className="compact-secondary">
+          The test reminder should trigger a native browser/OS notification immediately. If nothing appears, Firefox or your OS is likely suppressing notifications.
+        </p>
       </section>
     </div>
   );

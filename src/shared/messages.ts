@@ -20,6 +20,6 @@ export interface MessagePayloads {
   "lessons/update-status": DashboardData;
   "settings/reschedule-reminder": ReminderSettings;
   "provider/validate": ProviderValidationResult;
-  "notifications/test": { success: true };
+  "notifications/test": { success: boolean; message: string };
   "topics/import": { createdCount: number; dashboard: DashboardData };
 }

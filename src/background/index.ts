@@ -9,6 +9,7 @@ import {
   ensureDashboardData,
   loadDashboardData,
   openDashboard,
+  startDashboardGeneration,
   validateProviderConnection,
   refreshLesson,
   scheduleReminder,
@@ -127,8 +128,9 @@ browserApi.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
     case "dashboard/load":
       return loadDashboardData();
     case "dashboard/refresh":
-    case "dashboard/generate-missing":
       return ensureDashboardData();
+    case "dashboard/generate-missing":
+      return startDashboardGeneration();
     case "lessons/refresh-topic":
       return refreshLesson(message.topicId);
     case "lessons/update-status":
@@ -142,8 +144,7 @@ browserApi.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
     case "provider/validate":
       return validateProviderConnection();
     case "notifications/test":
-      await sendReminderNotification(true);
-      return { success: true };
+      return sendReminderNotification(true);
     case "topics/import":
       return {
         createdCount: (await importTopics(message.titles)).addedCount,

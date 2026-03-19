@@ -1,185 +1,204 @@
-# learning-plugin
-
-`learning-plugin` is a production-minded cross-browser browser extension built on the WebExtensions model with Manifest V3. It opens as a compact popup, lets users maintain a custom queue of learning topics, and generates up to 2 daily lesson cards with prerequisite-aware scheduling, variety balancing, reminder notifications, and a swappable LLM provider abstraction.
-
-## Architecture summary
-
-- UI: React + TypeScript extension UI with a compact popup dashboard and a matching settings window.
-- Runtime: Manifest V3 background service worker handles toolbar clicks, daily plan creation, lesson generation, alarms, and notifications.
-- Domain logic: Pure scheduling and prerequisite inference logic lives in `src/domain`, separate from storage and UI.
-- Storage: Local-first state stored in `browser.storage.local` as a versioned `ExtensionState`.
-- Provider layer: Clean `LessonProvider` interface with Gemini and OpenAI adapters.
-- Compatibility: Uses `webextension-polyfill`, the modern `action` API, MV3 service worker flow, minimal permissions, and a manifest shape that ports cleanly across Chrome-family browsers and Firefox with minor packaging adjustments.
-
-## Folder structure
+# `learning-plugin`
 
 ```text
-learning-plugin/
-├─ public/
-│  ├─ icons/
-│  └─ manifest.json
-├─ src/
-│  ├─ background/
-│  │  ├─ index.ts
-│  │  └─ runtime.ts
-│  ├─ domain/
-│  │  ├─ planner.ts
-│  │  └─ topicInference.ts
-│  ├─ lib/
-│  │  ├─ browserApi.ts
-│  │  ├─ id.ts
-│  │  ├─ messages.ts
-│  │  ├─ strings.ts
-│  │  ├─ theme.ts
-│  │  └─ time.ts
-│  ├─ pages/
-│  │  ├─ dashboard/
-│  │  ├─ history/
-│  │  ├─ manage/
-│  │  └─ options/
-│  ├─ providers/
-│  │  ├─ geminiProvider.ts
-│  │  ├─ index.ts
-│  │  ├─ openAiProvider.ts
-│  │  ├─ shared.ts
-│  │  └─ types.ts
-│  ├─ shared/
-│  │  ├─ constants.ts
-│  │  ├─ messages.ts
-│  │  ├─ seed.ts
-│  │  └─ types.ts
-│  ├─ storage/
-│  │  ├─ selectors.ts
-│  │  └─ state.ts
-│  ├─ styles/
-│  │  └─ index.css
-│  └─ ui/
-│     ├─ components/
-│     ├─ hooks/
-│     └─ layout/
-├─ tests/
-│  └─ planner.test.ts
-├─ dashboard.html
-├─ history.html
-├─ manage.html
-├─ options.html
-├─ package.json
-├─ tsconfig.json
-└─ vite.config.ts
+> queue a topic
+> generate two cards
+> learn something technical
 ```
 
-## Core behavior
+`learning-plugin` is a Manifest V3 WebExtensions extension for compact daily learning.
+It opens as a focused dark popup window, keeps a prerequisite-aware topic queue, and generates two lesson cards at a time with a local or hosted LLM.
 
-- Starts empty like a new-user install, then builds the queue from topics the user adds.
-- Infers initial categories and lightweight prerequisite suggestions, then merges them with editable manual prerequisites.
-- Builds a daily plan of 2 or 3 topics based on:
-  - unmet prerequisite filtering
-  - foundational weighting
-  - variety penalties across categories and tags
-  - unseen-topic preference
-  - spaced review reintroduction
-  - deterministic tie-breaking for easier debugging
-- Stores topic state, reminder state, and provider settings locally.
-- Shows a provider connection prompt when lesson generation is unavailable instead of using local fallback content.
+The current default path is:
 
-## Setup
+```text
+provider  : Ollama
+model     : qwen2.5:3b
+style     : terminal / AI console
+target    : Firefox + Chrome-family browsers
+```
 
-### Prerequisites
+## `> features`
 
-- Node.js 20+ recommended
-- npm 10+
+- local-first topic queue stored in `browser.storage.local`
+- prerequisite-aware ordering with category mixing
+- two visible lesson cards at a time
+- inline history, settings, and help pages inside the extension window
+- Ollama support with Firefox-specific setup help
+- Gemini support as a hosted fallback
+- reminder notifications with test flow
+- resilient lesson parsing for messy local-model output
+- deep-dive resources with curated links and deduplication
 
-### Install
+## `> stack`
+
+```text
+ui         React + TypeScript
+build      Vite
+runtime    WebExtensions MV3
+compat     webextension-polyfill
+tests      Vitest
+```
+
+Main folders:
+
+```text
+public/           manifest + icons
+src/background/   runtime + message handlers
+src/domain/       queue ordering + topic inference + resources
+src/pages/        dashboard / settings / history / about
+src/providers/    Ollama / Gemini / OpenAI adapters
+src/storage/      local state + migrations
+src/styles/       terminal-themed UI
+tests/            planner + settings coverage
+```
+
+## `> quick start`
+
+### `1. install deps`
 
 ```bash
 npm install
 ```
 
-### Typecheck
+### `2. validate`
 
 ```bash
 npm run typecheck
-```
-
-### Run tests
-
-```bash
 npm run test
 ```
 
-### Build
+### `3. build`
+
+Chrome / Edge / Opera:
 
 ```bash
 npm run build
 ```
 
-The built extension will be emitted to `dist/`.
-
-For a Firefox-loadable development build, use:
+Firefox:
 
 ```bash
 npm run build:firefox
 ```
 
-## Load in a browser
+## `> load in firefox`
 
-### Chrome / Edge / Opera
+```text
+1. run npm run build:firefox
+2. open about:debugging#/runtime/this-firefox
+3. click "Load Temporary Add-on"
+4. choose dist/manifest.json
+```
 
-1. Run `npm run build`.
-2. Open the browser extension management page.
-3. Enable developer mode.
-4. Choose “Load unpacked”.
-5. Select the `dist/` folder.
+Reload the temp add-on after each build.
 
-### Firefox
+## `> ollama setup`
 
-1. Run `npm run build:firefox`.
-2. Open `about:debugging`.
-3. Choose “This Firefox”.
-4. Click “Load Temporary Add-on”.
-5. Select any file inside `dist/`, typically `manifest.json`.
+Install Ollama, start the app, then pull the default model:
 
-For a signed Firefox submission, keep `browser_specific_settings.gecko.id` and package the contents of `dist/` into a zip/xpi.
+```powershell
+ollama pull qwen2.5:3b
+```
 
-## Packaging notes
+Check that Ollama is available:
 
-### Chrome-family browsers
+```powershell
+ollama list
+ollama ps
+```
 
-- The extension already uses Manifest V3 with `background.service_worker`.
-- Package the built `dist/` directory as a zip for store submission.
-- The manifest keeps permissions minimal: `storage`, `alarms`, and `notifications`, plus host permissions for OpenAI and Gemini generation endpoints.
+If Firefox can reach `http://127.0.0.1:11434` in the browser but the extension still cannot connect, start Ollama with extension origins enabled:
 
-### Firefox
+```powershell
+$env:OLLAMA_ORIGINS="chrome-extension://*,moz-extension://*,safari-web-extension://*"
+ollama serve
+```
 
-- Firefox gets a browser-specific MV3 manifest at build time.
-- `npm run build:firefox` rewrites `dist/manifest.json` to use `background.scripts` instead of `background.service_worker`.
-- Chrome-family browsers keep the `background.service_worker` manifest via `npm run build` or `npm run build:chrome`.
+Notes:
 
-## Provider notes
+- `qwen2.5:3b` is the default because it is much lighter than `gemma3`
+- the extension generates one card at a time to reduce local load
+- if your machine still struggles, the real fix is using an even smaller local model
 
-- Gemini is the default provider for lightweight free-tier testing, implemented in `src/providers/geminiProvider.ts`.
-- OpenAI remains available as an alternative provider in `src/providers/openAiProvider.ts`.
-- API keys are stored in extension storage with a clear warning because browser extensions cannot guarantee secret storage against a local privileged attacker.
-- Prompt templates are editable from the settings page and support these placeholders:
-  - `{{topicTitle}}`
-  - `{{topicDescription}}`
-  - `{{category}}`
-  - `{{difficultyPreference}}`
-  - `{{contentLength}}`
-  - `{{relatedTopics}}`
+## `> provider notes`
 
-## Testing
+### `Ollama`
 
-The repository includes unit-testable pure planning logic in `src/domain/planner.ts` with tests covering:
+- default provider
+- no API key needed
+- best option if you want local generation and no hosted quota
 
-- prerequisite-aware ordering
-- category/tag variety scoring
-- review resurfacing for previously learned topics
+### `Gemini`
 
-## Future improvements
+- available in Settings
+- useful if you want a hosted provider instead of local inference
 
-- Add provider adapters for Anthropic and local OpenAI-compatible endpoints via optional host permissions.
-- Introduce import/export and sync storage migration paths.
-- Add richer spaced-repetition models instead of the current lightweight review interval heuristic.
-- Support manual “understood / not understood” feedback separate from lesson status buttons.
-- Add browser-specific manifest generation for release packaging instead of a single shared static manifest.
+### `OpenAI`
+
+- adapter remains in the codebase
+- available for future expansion
+
+## `> what the extension actually does`
+
+```text
+new topic      -> inferred category + lightweight prerequisites
+queue order    -> foundations first, related topics nearby, variety when possible
+visible cards  -> first 2 eligible topics
+generation     -> only for visible topics, one card at a time
+history        -> stores finished topics and old lessons
+resources      -> curated links first, generated links filtered + deduped
+```
+
+## `> architecture notes`
+
+- `src/domain/planner.ts`
+  queue ordering, prerequisite handling, visible-topic selection
+- `src/domain/topicInference.ts`
+  category/tag inference from raw topic titles
+- `src/domain/resources.ts`
+  curated deep-dive links and deduplication
+- `src/background/runtime.ts`
+  loading, generation, alarms, notifications, toolbar window flow
+- `src/providers/ollamaProvider.ts`
+  local generation, validation, repair pass, lighter inference options
+- `src/providers/shared.ts`
+  prompt rendering, JSON parsing, Ollama fallback parsing
+- `src/storage/state.ts`
+  versioned extension state + migrations
+
+## `> commands`
+
+```bash
+npm run dev            # watch build
+npm run typecheck      # TypeScript
+npm run test           # Vitest
+npm run build          # Chrome-family manifest
+npm run build:firefox  # Firefox manifest
+```
+
+## `> packaging`
+
+### `chrome-family`
+
+- build with `npm run build`
+- load `dist/` as unpacked
+- zip `dist/` for store submission
+
+### `firefox`
+
+- build with `npm run build:firefox`
+- load `dist/manifest.json` as a temporary add-on
+- for distribution, package `dist/` as an `.xpi` / zip with the Firefox manifest
+
+## `> repository`
+
+[github.com/EdwardGlockner/learner-extension](https://github.com/EdwardGlockner/learner-extension)
+
+## `> next`
+
+- better local-model output shaping without strict JSON dependence
+- more curated resource rules for niche technical topics
+- import/export for queue state
+- sync-friendly storage model
+- browser-store packaging polish

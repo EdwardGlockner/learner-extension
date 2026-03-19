@@ -16,6 +16,8 @@ import type {
 import { initializeStateIfNeeded, loadState, replaceState } from "../storage/state";
 import { getTopicById } from "../storage/selectors";
 
+let activeDashboardGeneration: Promise<void> | null = null;
+
 async function generateLessonForTopic(
   state: Awaited<ReturnType<typeof loadState>>,
   topic: Topic,
@@ -238,6 +240,39 @@ export async function loadDashboardData(dateKey = getDateKey()): Promise<Dashboa
   return ensureDashboardDataInternal(dateKey, false);
 }
 
+export async function startDashboardGeneration(dateKey = getDateKey()): Promise<DashboardData> {
+  const dashboardData = await loadDashboardData(dateKey);
+  const providerId = dashboardData.state.settings.provider.selectedProvider;
+
+  if (!providerId) {
+    return dashboardData;
+  }
+
+  const missingTopicIds = dashboardData.visibleTopicIds.filter(
+    (topicId) => !dashboardData.visibleLessons.some((lesson) => lesson.topicId === topicId)
+  );
+  const hasEligibleMissingTopics = missingTopicIds.some((topicId) =>
+    shouldAttemptGeneration(dashboardData.state, topicId, dateKey, providerId)
+  );
+
+  if (!hasEligibleMissingTopics) {
+    return dashboardData;
+  }
+
+  if (!activeDashboardGeneration) {
+    activeDashboardGeneration = ensureDashboardDataInternal(dateKey, true)
+      .then(() => undefined)
+      .catch((error) => {
+        console.error("Background lesson generation failed", error);
+      })
+      .finally(() => {
+        activeDashboardGeneration = null;
+      });
+  }
+
+  return dashboardData;
+}
+
 async function ensureDashboardDataInternal(dateKey: string, shouldGenerateMissing: boolean): Promise<DashboardData> {
   let state = await loadState();
   let visibleTopicIds = getVisibleTopicIds(state);
@@ -262,14 +297,10 @@ async function ensureDashboardDataInternal(dateKey: string, shouldGenerateMissin
 
   if (shouldGenerateMissing && eligibleTopicIds.length) {
     const newLessons: LessonGeneration[] = [];
+    const topicId = eligibleTopicIds[0];
+    const topic = topicId ? getTopicById(state, topicId) : undefined;
 
-    for (const topicId of eligibleTopicIds) {
-      const topic = getTopicById(state, topicId);
-
-      if (!topic) {
-        continue;
-      }
-
+    if (topic) {
       try {
         const lesson = await generateLessonForTopic(state, topic, dateKey);
 
@@ -362,7 +393,14 @@ export async function updateLessonStatus(lessonId: string, status: LessonStatus)
   }
 
   const now = new Date().toISOString();
-  const lessons = state.lessons.map((candidate) =>
+  const latestState = await loadState();
+  const latestLesson = latestState.lessons.find((candidate) => candidate.id === lessonId);
+
+  if (!latestLesson) {
+    throw new Error("Lesson not found.");
+  }
+
+  const mergedLessons = latestState.lessons.map((candidate) =>
     candidate.id === lessonId
       ? {
           ...candidate,
@@ -372,8 +410,8 @@ export async function updateLessonStatus(lessonId: string, status: LessonStatus)
       : candidate
   );
 
-  const topics = state.topics.map((topic) => {
-    if (topic.id !== lesson.topicId) {
+  const mergedTopics = latestState.topics.map((topic) => {
+    if (topic.id !== latestLesson.topicId) {
       return topic;
     }
 
@@ -398,7 +436,7 @@ export async function updateLessonStatus(lessonId: string, status: LessonStatus)
     return topic;
   });
 
-  await replaceState({ ...state, lessons, topics });
+  await replaceState({ ...latestState, lessons: mergedLessons, topics: mergedTopics });
 }
 
 async function setReminderStatus(status: "idle" | "sent" | "unavailable" | "failed", error?: string): Promise<void> {
@@ -457,26 +495,42 @@ export async function validateProviderConnection() {
   }
 }
 
-export async function sendReminderNotification(force = false): Promise<void> {
+export async function sendReminderNotification(force = false): Promise<{ success: boolean; message: string }> {
   const { state, visibleTopicIds } = await ensureDashboardData();
 
-  if (!visibleTopicIds.length) {
-    return;
+  if (!force && !visibleTopicIds.length) {
+    return {
+      success: false,
+      message: "No queued cards are ready, so no reminder was sent."
+    };
   }
 
   try {
     await browserApi.notifications.create("learning-plugin-reminder", {
       type: "basic",
       iconUrl: browserApi.runtime.getURL("icons/icon128.png"),
-      title: "Your learning cards are ready",
-      message: `You have ${visibleTopicIds.length} topics ready in learning-plugin.`
+      title: force ? "learning-plugin test reminder" : "Your learning cards are ready",
+      message: force
+        ? "Notifications are working."
+        : `You have ${visibleTopicIds.length} topics ready in learning-plugin.`
     });
     await setReminderStatus("sent");
+    return {
+      success: true,
+      message: force
+        ? "Test reminder sent. If you do not see a system notification, check Firefox notification permissions and your OS Do Not Disturb settings."
+        : "Reminder sent."
+    };
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Notifications are unavailable in this browser.";
     await setReminderStatus(
       "failed",
-      error instanceof Error ? error.message : "Notifications are unavailable in this browser."
+      message
     );
+    return {
+      success: false,
+      message: `Reminder failed: ${message}`
+    };
   } finally {
     await scheduleReminder();
   }

@@ -50,6 +50,13 @@ const rules: ResourceRule[] = [
     ]
   },
   {
+    match: /\blanggraph\b/i,
+    resources: [
+      { title: "LangGraph overview", url: "https://langchain-ai.github.io/langgraph/", source: "docs" },
+      { title: "LangGraph guides", url: "https://langchain-ai.github.io/langgraph/concepts/why-langgraph/", source: "docs" }
+    ]
+  },
+  {
     match: /\bmcp\b|model context protocol/i,
     resources: [
       { title: "Model Context Protocol", url: "https://modelcontextprotocol.io/introduction", source: "docs" },
@@ -106,6 +113,14 @@ const rules: ResourceRule[] = [
     ]
   },
   {
+    match: /\bjpeg\b|\bjpg\b|\bpng\b|\blossless\b|\blossy\b|\bcompression\b/i,
+    resources: [
+      { title: "PNG specification", url: "https://www.w3.org/TR/png-3/", source: "docs" },
+      { title: "JPEG overview", url: "https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types", source: "docs" },
+      { title: "Discrete cosine transform", url: "https://en.wikipedia.org/wiki/Discrete_cosine_transform", source: "article" }
+    ]
+  },
+  {
     match: /\bagent orchestration\b|\bagent skills\b/i,
     resources: [
       { title: "LangGraph", url: "https://langchain-ai.github.io/langgraph/", source: "docs" },
@@ -126,16 +141,50 @@ function fallbackResources(topic: Topic): ResourceLink[] {
 
   return [
     {
-      title: `${topic.title} on Wikipedia`,
-      url: `https://en.wikipedia.org/wiki/Special:Search?search=${query}`,
-      source: "article"
-    },
-    {
       title: `${topic.title} papers`,
       url: `https://arxiv.org/search/?query=${query}&searchtype=all&source=header`,
       source: "paper"
     }
   ];
+}
+
+function normalizeResourceTitle(title: string): string {
+  return normalizeTitle(title)
+    .replace(/\bon wikipedia\b/g, "")
+    .replace(/\bpaper[s]?\b/g, "")
+    .trim();
+}
+
+function normalizeResourceUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.replace(/^www\./, "");
+    const pathname = parsed.pathname.replace(/\/+$/, "");
+
+    if (hostname.includes("wikipedia.org")) {
+      if (pathname.startsWith("/wiki/")) {
+        return `${hostname}${pathname}`;
+      }
+
+      if (pathname.includes("/Special:Search")) {
+        return `${hostname}/wiki-search`;
+      }
+    }
+
+    if (hostname.includes("arxiv.org")) {
+      if (pathname.startsWith("/abs/")) {
+        return `${hostname}${pathname}`;
+      }
+
+      if (pathname.startsWith("/search/")) {
+        return `${hostname}/search`;
+      }
+    }
+
+    return `${hostname}${pathname}`;
+  } catch {
+    return url.trim();
+  }
 }
 
 export function getCuratedResources(topic: Topic, generated: ResourceLink[] = []): ResourceLink[] {
@@ -151,13 +200,20 @@ export function getCuratedResources(topic: Topic, generated: ResourceLink[] = []
       return false;
     }
 
-    const key = `${resource.url}|${normalizedTitle}`;
+    if (/wikipedia\.org\/wiki\/Special:Search/i.test(resource.url)) {
+      return false;
+    }
 
-    if (seen.has(key)) {
+    const key = `${normalizeResourceUrl(resource.url)}|${normalizedTitle}`;
+    const titleKey = normalizeResourceTitle(resource.title);
+    const titleTopicKey = `${titleKey}|${normalizedTitle}`;
+
+    if (seen.has(key) || seen.has(titleTopicKey)) {
       return false;
     }
 
     seen.add(key);
+    seen.add(titleTopicKey);
     return true;
   }).slice(0, 3);
 }

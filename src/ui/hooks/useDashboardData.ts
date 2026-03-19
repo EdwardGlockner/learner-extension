@@ -2,7 +2,27 @@ import { useCallback, useEffect, useState } from "react";
 import { selectVisibleTopics } from "../../domain/planner";
 import { sendBackgroundMessage } from "../../lib/messages";
 import { isSelectedProviderConfigured } from "../../providers";
-import type { DashboardData, LessonStatus } from "../../shared/types";
+import type { DashboardData, LessonGenerationAttempt, LessonStatus } from "../../shared/types";
+
+const GENERATION_POLL_INTERVAL_MS = 1500;
+const GENERATION_POLL_TIMEOUT_MS = 45000;
+
+function getMissingVisibleTopicIds(data: DashboardData): string[] {
+  return data.visibleTopicIds.filter((topicId) => !data.visibleLessons.some((lesson) => lesson.topicId === topicId));
+}
+
+function getLatestVisibleAttempt(data: DashboardData): LessonGenerationAttempt | undefined {
+  const providerId = data.state.settings.provider.selectedProvider;
+
+  if (!providerId) {
+    return undefined;
+  }
+
+  return data.state.generationAttempts
+    .filter((attempt) => attempt.providerId === providerId)
+    .filter((attempt) => data.visibleTopicIds.includes(attempt.topicId))
+    .sort((left, right) => right.lastAttemptAt.localeCompare(left.lastAttemptAt))[0];
+}
 
 export function useDashboardData() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -16,6 +36,7 @@ export function useDashboardData() {
       setLoading(true);
       const nextData = await sendBackgroundMessage({ type });
       setData(nextData);
+      setLastAutoGenerateKey(null);
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Failed to load dashboard.");
@@ -37,7 +58,7 @@ export function useDashboardData() {
       return;
     }
 
-    const missingTopicIds = data.visibleTopicIds.filter((topicId) => !data.visibleLessons.some((lesson) => lesson.topicId === topicId));
+    const missingTopicIds = getMissingVisibleTopicIds(data);
 
     if (!missingTopicIds.length) {
       return;
@@ -55,15 +76,73 @@ export function useDashboardData() {
     void sendBackgroundMessage({ type: "dashboard/generate-missing" })
       .then((nextData) => {
         setData(nextData);
-        setError(null);
       })
       .catch((reason) => {
         setError(reason instanceof Error ? reason.message : "Failed to generate lessons.");
-      })
-      .finally(() => {
         setGenerating(false);
       });
   }, [data, generating, lastAutoGenerateKey]);
+
+  useEffect(() => {
+    if (!data || !generating) {
+      return;
+    }
+
+    const startedAt = Date.now();
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const nextData = await sendBackgroundMessage({ type: "dashboard/load" });
+
+        if (cancelled) {
+          return;
+        }
+
+        setData(nextData);
+        const missingTopicIds = getMissingVisibleTopicIds(nextData);
+
+        if (!missingTopicIds.length) {
+          setGenerating(false);
+          setError(null);
+          return;
+        }
+
+        const latestAttempt = getLatestVisibleAttempt(nextData);
+
+        if (latestAttempt?.lastError) {
+          setGenerating(false);
+          setError(latestAttempt.lastError);
+          return;
+        }
+
+        if (Date.now() - startedAt >= GENERATION_POLL_TIMEOUT_MS) {
+          setGenerating(false);
+          setError("Lesson generation is taking longer than expected. Keep Ollama running and try again.");
+          return;
+        }
+
+        void sendBackgroundMessage({ type: "dashboard/generate-missing" }).catch(() => undefined);
+      } catch (reason) {
+        if (cancelled) {
+          return;
+        }
+
+        setGenerating(false);
+        setError(reason instanceof Error ? reason.message : "Failed to refresh lesson generation.");
+      }
+    };
+
+    void poll();
+    const intervalId = window.setInterval(() => {
+      void poll();
+    }, GENERATION_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [data, generating]);
 
   useEffect(() => {
     const handleFocus = () => {

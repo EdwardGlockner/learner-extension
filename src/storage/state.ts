@@ -1,5 +1,14 @@
 import { browserApi } from "../lib/browserApi";
-import { DEFAULT_SETTINGS, STORAGE_KEY, STATE_VERSION } from "../shared/constants";
+import {
+  ADVANCED_DEFAULT_PROMPT_TEMPLATE_V1,
+  DEFAULT_SETTINGS,
+  DEFAULT_OLLAMA_MODEL,
+  INTERMEDIATE_DEFAULT_PROMPT_TEMPLATE,
+  LEGACY_OLLAMA_MODEL,
+  LEGACY_DEFAULT_PROMPT_TEMPLATE,
+  STORAGE_KEY,
+  STATE_VERSION
+} from "../shared/constants";
 import { createInitialState } from "../shared/seed";
 import type { AppSettings, DailyPlan, ExtensionState, LessonGeneration, Topic } from "../shared/types";
 
@@ -9,6 +18,22 @@ function migrateState(input: ExtensionState | undefined): ExtensionState {
   }
 
   if (input.version === STATE_VERSION) {
+    const nextPromptTemplate =
+      !input.settings.provider.promptTemplate ||
+      input.settings.provider.promptTemplate === LEGACY_DEFAULT_PROMPT_TEMPLATE ||
+      input.settings.provider.promptTemplate === INTERMEDIATE_DEFAULT_PROMPT_TEMPLATE ||
+      input.settings.provider.promptTemplate === ADVANCED_DEFAULT_PROMPT_TEMPLATE_V1
+        ? DEFAULT_SETTINGS.provider.promptTemplate
+        : input.settings.provider.promptTemplate;
+    const nextDifficultyPreference =
+      input.settings.provider.difficultyPreference === "mixed"
+        ? DEFAULT_SETTINGS.provider.difficultyPreference
+        : input.settings.provider.difficultyPreference;
+    const nextOllamaModel =
+      !input.settings.provider.ollamaModel || input.settings.provider.ollamaModel === LEGACY_OLLAMA_MODEL
+        ? DEFAULT_OLLAMA_MODEL
+        : input.settings.provider.ollamaModel;
+
     return {
       ...input,
       generationAttempts: input.generationAttempts ?? [],
@@ -17,7 +42,10 @@ function migrateState(input: ExtensionState | undefined): ExtensionState {
         provider: {
           ...DEFAULT_SETTINGS.provider,
           ...input.settings.provider,
-          selectedProvider: input.settings.provider.selectedProvider ?? DEFAULT_SETTINGS.provider.selectedProvider
+          selectedProvider: input.settings.provider.selectedProvider ?? DEFAULT_SETTINGS.provider.selectedProvider,
+          promptTemplate: nextPromptTemplate,
+          difficultyPreference: nextDifficultyPreference,
+          ollamaModel: nextOllamaModel
         },
         ui: {
           ...createInitialState(input.initializedAt).settings.ui,

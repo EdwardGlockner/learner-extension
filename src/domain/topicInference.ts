@@ -28,6 +28,12 @@ const rules: RuleSet[] = [
     tags: ["systems", "networking"]
   },
   {
+    match: /(jpeg|png|compression|codec|image format|lossless|lossy)/i,
+    category: "systems-infrastructure",
+    difficulty: 3,
+    tags: ["compression", "media-formats"]
+  },
+  {
     match: /(cloud|kubernetes)/i,
     category: "cloud-devops",
     difficulty: 3,
@@ -73,11 +79,12 @@ const topicPrerequisites: Record<string, string[]> = {
 export function inferTopicSuggestion(title: string): TopicSuggestion {
   const normalized = normalizeTitle(title);
   const matched = rules.find((rule) => rule.match.test(title));
+  const looksResearchHeavy = /(theory|alignment|causal|interpretability|self-improvement|emergence|optimization)/i.test(title);
 
   return {
     title: title.trim(),
-    tags: matched?.tags ?? ["general"],
-    category: matched?.category ?? "research-concepts",
+    tags: matched?.tags ?? (looksResearchHeavy ? ["research"] : ["general"]),
+    category: matched?.category ?? (looksResearchHeavy ? "research-concepts" : "systems-infrastructure"),
     difficulty: matched?.difficulty ?? 3,
     inferredPrerequisites: topicPrerequisites[normalized] ?? []
   };

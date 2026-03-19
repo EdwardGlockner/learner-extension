@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { openExtensionPopupWindow, openExternalUrl } from "../../lib/browserApi";
+import { navigateCurrentExtensionPage, openExternalUrl } from "../../lib/browserApi";
 import { getCuratedResources } from "../../domain/resources";
 import { sortTopicsByLearningOrder } from "../../domain/planner";
 import { sendBackgroundMessage } from "../../lib/messages";
@@ -16,7 +16,10 @@ type DailyCardProps = {
   title: string;
   category: string;
   explanation: string;
+  whyItMatters: string;
   examples: string[];
+  pitfalls: string[];
+  nextSteps: string[];
   resources: Array<{ title: string; url: string }>;
   disabled?: boolean;
   onDone: () => Promise<void>;
@@ -36,7 +39,115 @@ type VisibleCardSlot =
   | {
       type: "loading";
       topic: Topic;
-    };
+  };
+
+function isEquationLike(line: string): boolean {
+  const trimmed = line.trim();
+
+  if (trimmed.length < 6 || trimmed.length > 120) {
+    return false;
+  }
+
+  if (!/[=<>+\-/*^]/.test(trimmed)) {
+    return false;
+  }
+
+  return /^[a-zA-Z0-9_()[\]{}.,:%+\-/*^<>\s|]+$/.test(trimmed);
+}
+
+function splitIntoSentenceChunks(line: string): string[] {
+  const normalized = line.replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return [];
+  }
+
+  const sentences = normalized
+    .split(/(?<=[.!?])\s+(?=[A-Z0-9(])/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  if (sentences.length <= 2 && normalized.length < 280) {
+    return [normalized];
+  }
+
+  const chunks: string[] = [];
+  let currentChunk = "";
+
+  for (const sentence of sentences) {
+    const nextChunk = currentChunk ? `${currentChunk} ${sentence}` : sentence;
+
+    if (currentChunk && (currentChunk.length >= 220 || nextChunk.length > 260)) {
+      chunks.push(currentChunk);
+      currentChunk = sentence;
+      continue;
+    }
+
+    currentChunk = nextChunk;
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks.length ? chunks : [normalized];
+}
+
+function renderStructuredText(text: string) {
+  const blocks = text
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  return blocks.map((block, index) => {
+    const lines = block
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (!lines.length) {
+      return null;
+    }
+
+    if (lines.every((line) => /^[-*]\s+/.test(line))) {
+      return (
+        <ul key={`${block}-${index}`} className="lesson-bullets">
+          {lines.map((line) => (
+            <li key={line}>{line.replace(/^[-*]\s+/, "")}</li>
+          ))}
+        </ul>
+      );
+    }
+
+    if (lines.length === 1 && isEquationLike(lines[0])) {
+      return (
+        <pre key={`${block}-${index}`} className="equation-block">
+          {lines[0]}
+        </pre>
+      );
+    }
+
+    return (
+      <div key={`${block}-${index}`} className="lesson-paragraph-group">
+        {lines.flatMap((line, lineIndex) => {
+          if (isEquationLike(line)) {
+            return (
+              <pre key={`${block}-${index}-equation-${lineIndex}`} className="equation-block">
+                {line}
+              </pre>
+            );
+          }
+
+          return splitIntoSentenceChunks(line).map((chunk, chunkIndex) => (
+            <p key={`${block}-${index}-line-${lineIndex}-chunk-${chunkIndex}`} className="lesson-paragraph">
+              {chunk}
+            </p>
+          ));
+        })}
+      </div>
+    );
+  });
+}
 
 function formatRetryMessage(nextRetryAt?: string): string | null {
   if (!nextRetryAt) {
@@ -63,7 +174,10 @@ function DailyCard({
   title,
   category,
   explanation,
+  whyItMatters,
   examples,
+  pitfalls,
+  nextSteps,
   resources,
   disabled,
   onDone
@@ -77,31 +191,69 @@ function DailyCard({
         </div>
       </div>
       <div className="daily-card-body">
-        <p>{explanation}</p>
+        <section className="lesson-section">
+          <p className="lesson-section-label">Summary</p>
+          {renderStructuredText(explanation)}
+        </section>
+        {whyItMatters ? (
+          <section className="lesson-section">
+            <p className="lesson-section-label">Why it matters</p>
+            {renderStructuredText(whyItMatters)}
+          </section>
+        ) : null}
         {examples.length ? (
-          <ul className="compact-list">
-            {examples.slice(0, 2).map((example) => (
-              <li key={example}>{example}</li>
-            ))}
-          </ul>
+          <section className="lesson-section">
+            <p className="lesson-section-label">Examples</p>
+            <ul className="lesson-chip-list">
+              {examples.slice(0, 3).map((example) => (
+                <li key={example} className="lesson-chip-item">
+                  {example}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        {pitfalls.length ? (
+          <section className="lesson-section">
+            <p className="lesson-section-label">Common pitfalls</p>
+            <ul className="lesson-bullets">
+              {pitfalls.slice(0, 3).map((pitfall) => (
+                <li key={pitfall}>{pitfall}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        {nextSteps.length ? (
+          <section className="lesson-section">
+            <p className="lesson-section-label">What to learn next</p>
+            <ul className="lesson-bullets">
+              {nextSteps.slice(0, 3).map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ul>
+          </section>
         ) : null}
         {resources.length ? (
-          <div className="resource-inline-row">
-            {resources.slice(0, 2).map((resource) => (
-              <button
-                key={resource.url}
-                type="button"
-                className="inline-link inline-link-button"
-                onClick={() => void openExternalUrl(resource.url)}
-              >
-                {resource.title}
-              </button>
-            ))}
-          </div>
+          <section className="lesson-section">
+            <p className="lesson-section-label">Deep dive</p>
+            <div className="resource-inline-row">
+              {resources.slice(0, 3).map((resource) => (
+                <a
+                  key={resource.url}
+                  className="inline-link inline-link-button"
+                  href={resource.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  {resource.title}
+                </a>
+              ))}
+            </div>
+          </section>
         ) : null}
       </div>
       <div className="compact-actions">
-        <button className="button button-primary" disabled={disabled} onClick={() => void onDone()}>
+        <button type="button" className="button button-primary" disabled={disabled} onClick={() => void onDone()}>
           {disabled ? "Removing..." : "Finished / remove"}
         </button>
       </div>
@@ -131,12 +283,11 @@ function LoadingCard({ topic }: { topic: Topic }) {
 }
 
 export function DashboardPage() {
-  const { data, setData, loading, generating, error, reload, refresh, regenerateLesson, updateLessonStatus } =
+  const { data, setData, loading, generating, error, reload, regenerateLesson, updateLessonStatus } =
     useDashboardData();
   const [newTopicInput, setNewTopicInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [isSubmittingTopic, setIsSubmittingTopic] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingLessonIds, setPendingLessonIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -158,12 +309,6 @@ export function DashboardPage() {
       window.clearTimeout(timeoutId);
     };
   }, [toast]);
-
-  useEffect(() => {
-    if (error) {
-      setToast(error);
-    }
-  }, [error]);
 
   const topicsById = useMemo(() => {
     if (!data) {
@@ -262,7 +407,7 @@ export function DashboardPage() {
     hasProviderKey &&
     pendingPlanTopics.length > 0 &&
     !visibleCardSlots.length &&
-    (loading || generating || isSubmittingTopic || isRefreshing);
+    (loading || generating || isSubmittingTopic);
 
   async function handleQuickAdd(): Promise<void> {
     const titles = titleFromLines(newTopicInput);
@@ -298,17 +443,11 @@ export function DashboardPage() {
     await reload();
   }
 
-  async function handleRefresh(): Promise<void> {
-    setIsRefreshing(true);
-
-    try {
-      await refresh();
-    } finally {
-      setIsRefreshing(false);
-    }
-  }
-
   async function handleFinishLesson(lessonId: string): Promise<void> {
+    if (pendingLessonIds.includes(lessonId)) {
+      return;
+    }
+
     setPendingLessonIds((current) => [...current, lessonId]);
 
     try {
@@ -323,14 +462,25 @@ export function DashboardPage() {
       {toast ? <div className="toast-banner">{toast}</div> : null}
       <header className="popup-header">
         <p className="mini-label">learning-plugin</p>
-        <div className="compact-actions">
-          <button className="button button-ghost" onClick={() => void handleRefresh()}>
-            {isRefreshing ? "Refreshing..." : "Refresh"}
-          </button>
-          <button className="button button-ghost" onClick={() => void openExtensionPopupWindow("options.html", 560, 760)}>
-            Settings
-          </button>
-        </div>
+          <div className="compact-actions">
+            <button type="button" className="button button-ghost" onClick={() => navigateCurrentExtensionPage("history.html")}>
+              History
+            </button>
+            <button type="button" className="button button-ghost" onClick={() => navigateCurrentExtensionPage("options.html")}>
+              Settings
+            </button>
+            <button
+              type="button"
+              className="button button-ghost"
+              aria-label="GitHub repository"
+              onClick={() => void openExternalUrl("https://github.com/EdwardGlockner/learner-extension")}
+            >
+              GitHub
+            </button>
+            <button type="button" className="button button-ghost button-icon" aria-label="About" onClick={() => navigateCurrentExtensionPage("about.html")}>
+              ?
+            </button>
+          </div>
       </header>
 
       <section className="quick-add-inline">
@@ -350,10 +500,12 @@ export function DashboardPage() {
           }}
           placeholder="Example: Attention LLM"
         />
-        <button className="button button-primary" onClick={() => void handleQuickAdd()}>
+        <button type="button" className="button button-primary" onClick={() => void handleQuickAdd()}>
           {isSubmittingTopic ? "Adding..." : "Add"}
         </button>
       </section>
+
+      {error ? <div className="compact-banner compact-banner-error">{error}</div> : null}
 
       {hasProviderKey && visibleCardSlots.length ? (
         <section className="daily-grid">
@@ -364,7 +516,10 @@ export function DashboardPage() {
                 title={slot.topic.title}
                 category={CATEGORY_LABELS[slot.topic.category]}
                 explanation={slot.lesson.content.explanation}
+                whyItMatters={slot.lesson.content.whyItMatters}
                 examples={slot.lesson.content.examples}
+                pitfalls={slot.lesson.content.pitfalls}
+                nextSteps={slot.lesson.content.nextSteps}
                 resources={getCuratedResources(slot.topic, slot.lesson.content.resources)}
                 disabled={pendingLessonIds.includes(slot.lesson.id)}
                 onDone={() => handleFinishLesson(slot.lesson.id)}
@@ -396,7 +551,9 @@ export function DashboardPage() {
         <EmptyState
           title={hasProviderKey ? "No lessons ready" : `Connect ${providerLabel}`}
           body={
-            hasProviderKey
+            error
+              ? error
+              : hasProviderKey
               ? latestGenerationAttempt?.lastError
                 ? retryMessage
                   ? `${latestGenerationAttempt.lastError} ${retryMessage}`
@@ -419,11 +576,11 @@ export function DashboardPage() {
             <ul className="queue-inline-list">
               {queueTopics.map((topic) => (
                 <li key={topic.id} className="queue-inline-item">
-                  <button className="queue-inline-button" onClick={() => void regenerateLesson(topic.id).catch(() => undefined)}>
+                  <button type="button" className="queue-inline-button" onClick={() => void regenerateLesson(topic.id).catch(() => undefined)}>
                     <span>{topic.title}</span>
                     <small>{CATEGORY_LABELS[topic.category]}</small>
                   </button>
-                  <button className="button button-ghost button-danger" onClick={() => void handleRemoveTopic(topic.id)}>
+                  <button type="button" className="button button-ghost button-danger" onClick={() => void handleRemoveTopic(topic.id)}>
                     Remove
                   </button>
                 </li>
