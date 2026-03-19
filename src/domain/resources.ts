@@ -138,8 +138,13 @@ const rules: ResourceRule[] = [
 
 function fallbackResources(topic: Topic): ResourceLink[] {
   const searchQuery = encodeURIComponent(topic.title.trim());
-  const normalizedQuery = normalizeTitle(topic.title);
+  const normalizedTitle = normalizeTitle(topic.title);
   const wikipediaSlug = encodeURIComponent(topic.title.trim().replace(/\s+/g, "_"));
+  const looksResearchHeavy =
+    /(llm|transformer|diffusion|embedding|multimodal|latent|vae|cnn|vit|resnet|architecture|optimizer|loss|manifold|hypersphere|representation|rlhf|rag|attention|foundation model|inference|benchmark|scaling|training)/i.test(
+      topic.title
+    ) ||
+    topic.category === "research-concepts";
   const genericResources: ResourceLink[] = [
     {
       title: `${topic.title} on Wikipedia`,
@@ -152,21 +157,29 @@ function fallbackResources(topic: Topic): ResourceLink[] {
       source: "article"
     }
   ];
-  const researchResources: ResourceLink[] =
-    topic.category === "llm-fundamentals" ||
-    topic.category === "llm-applications" ||
-    topic.category === "research-concepts"
+  const practicalResources: ResourceLink[] =
+    /(docker|kubernetes|cloud|proxy|nginx|network|server|deployment|devops|linux|cache|ram|disk)/i.test(topic.title)
       ? [
           {
-            title: `${topic.title} papers`,
-            url: `https://arxiv.org/search/?query=${encodeURIComponent(normalizedQuery)}&searchtype=all&source=header`,
-            source: "paper"
+            title: `${topic.title} docs`,
+            url: `https://duckduckgo.com/?q=${encodeURIComponent(`${topic.title} official docs`)}`,
+            source: "docs"
           }
         ]
       : [];
+  const researchResources: ResourceLink[] = looksResearchHeavy
+    ? [
+        {
+          title: `${topic.title} papers`,
+          url: `https://arxiv.org/search/?query=${encodeURIComponent(normalizedTitle)}&searchtype=all&source=header`,
+          source: "paper"
+        }
+      ]
+    : [];
 
   return [
     ...genericResources,
+    ...practicalResources,
     ...researchResources
   ];
 }
