@@ -137,14 +137,37 @@ const rules: ResourceRule[] = [
 ];
 
 function fallbackResources(topic: Topic): ResourceLink[] {
-  const query = encodeURIComponent(normalizeTitle(topic.title));
+  const searchQuery = encodeURIComponent(topic.title.trim());
+  const normalizedQuery = normalizeTitle(topic.title);
+  const wikipediaSlug = encodeURIComponent(topic.title.trim().replace(/\s+/g, "_"));
+  const genericResources: ResourceLink[] = [
+    {
+      title: `${topic.title} on Wikipedia`,
+      url: `https://en.wikipedia.org/wiki/${wikipediaSlug}`,
+      source: "article"
+    },
+    {
+      title: `${topic.title} web results`,
+      url: `https://duckduckgo.com/?q=${searchQuery}`,
+      source: "article"
+    }
+  ];
+  const researchResources: ResourceLink[] =
+    topic.category === "llm-fundamentals" ||
+    topic.category === "llm-applications" ||
+    topic.category === "research-concepts"
+      ? [
+          {
+            title: `${topic.title} papers`,
+            url: `https://arxiv.org/search/?query=${encodeURIComponent(normalizedQuery)}&searchtype=all&source=header`,
+            source: "paper"
+          }
+        ]
+      : [];
 
   return [
-    {
-      title: `${topic.title} papers`,
-      url: `https://arxiv.org/search/?query=${query}&searchtype=all&source=header`,
-      source: "paper"
-    }
+    ...genericResources,
+    ...researchResources
   ];
 }
 
@@ -154,6 +177,7 @@ function normalizeResourceTitle(title: string): string {
   return normalizeTitle(title)
     .replace(/\bon wikipedia\b/g, "")
     .replace(/\bpaper[s]?\b/g, "")
+    .replace(/\bweb results\b/g, "")
     .trim();
 }
 
