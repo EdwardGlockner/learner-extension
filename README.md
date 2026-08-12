@@ -20,7 +20,6 @@ A compact WebExtensions MV3 learning tool that turns your own learning list into
 - generates cards with a local or hosted LLM
 - stores history, settings, and reminders locally
 - supports `Ollama`, `Gemini`, and `OpenAI`
-- defaults to local `Ollama` with `qwen2.5:3b`
 
 ## `> quick start`
 
