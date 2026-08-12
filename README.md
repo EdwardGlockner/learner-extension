@@ -1,8 +1,8 @@
 # `learning-plugin`
 
 ```text
-> add topic
-> generate 2 cards
+> add topics
+> schedule the next lessons
 > learn something technical
 ```
 
