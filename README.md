@@ -3,7 +3,7 @@
 ```text
 > add topics
 > schedule the next lessons
-> learn something technical
+> learn something
 ```
 
 A compact WebExtensions MV3 learning tool with a terminal-style UI.
