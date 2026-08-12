@@ -1,12 +1,12 @@
 # `learning-plugin`
 
 ```text
-> add topics
-> schedule the next lessons
+> add things you want to learn
+> get the next lessons scheduled
 > learn something
 ```
 
-A compact WebExtensions MV3 learning tool with a terminal-style UI.
+A compact WebExtensions MV3 learning tool that turns your own learning list into scheduled lesson cards.
 
 ![learning-plugin demo](docs/demo.gif)
 
@@ -20,8 +20,8 @@ providers  Ollama / Gemini / OpenAI
 default    Ollama + qwen2.5:3b
 ```
 
-- keeps a local topic queue
-- orders topics with lightweight prerequisite logic
+- keeps your personal topic queue locally
+- schedules the next lessons with lightweight prerequisite logic
 - shows 2 visible lesson cards at a time
 - generates cards with a local or hosted LLM
 - stores history, settings, and reminders locally
