@@ -48,33 +48,3 @@ npm run build
 3. click "Load Temporary Add-on"
 4. choose builds/firefox/manifest.json
 ```
-
-## `> providers`
-
-Build targets:
-
-```bash
-npm run build
-npm run build:firefox
-npm run build:all
-```
-
-Default local provider:
-
-```powershell
-ollama pull qwen2.5:3b
-```
-
-Useful checks:
-
-```powershell
-ollama list
-ollama ps
-```
-
-Firefox fallback if the extension cannot connect to Ollama:
-
-```powershell
-$env:OLLAMA_ORIGINS="chrome-extension://*,moz-extension://*,safari-web-extension://*"
-ollama serve
-```
