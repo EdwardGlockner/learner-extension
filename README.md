@@ -8,6 +8,8 @@
 
 A compact WebExtensions MV3 learning tool with a terminal-style UI.
 
+![learning-plugin demo](docs/demo.gif)
+
 ## `> stack`
 
 ```text
