@@ -183,7 +183,12 @@ function extractSection(raw: string, headings: string[]): string {
   return match?.[1]?.trim() ?? "";
 }
 
-function fallbackParseLesson(raw: string, request: ProviderLessonRequest, model: string): ProviderLessonResult {
+function fallbackParseLesson(
+  raw: string,
+  request: ProviderLessonRequest,
+  model: string,
+  providerId: ProviderId
+): ProviderLessonResult {
   const explanation =
     extractJsonLikeStringField(raw, "explanation") ||
     extractSection(raw, ["summary", "explanation"]) ||
@@ -212,7 +217,7 @@ function fallbackParseLesson(raw: string, request: ProviderLessonRequest, model:
   const looseResources = extractLooseResourceLines(raw);
 
   return {
-    providerId: "ollama",
+    providerId,
     model,
     explanation,
     whyItMatters,
@@ -232,11 +237,7 @@ export function parseJsonLesson(
   const parsed = tryParseJsonLikeObject(raw);
 
   if (!parsed) {
-    if (providerId === "ollama") {
-      return fallbackParseLesson(raw, request, model);
-    }
-
-    throw new Error(`${providerId} returned lesson content that was not valid JSON. Adjust the model/prompt and try again.`);
+    return fallbackParseLesson(raw, request, model, providerId);
   }
   const generatedResources = normalizeResources(parsed.resources);
 

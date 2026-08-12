@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { navigateCurrentExtensionPage, openExternalUrl } from "../../lib/browserApi";
 import { getCuratedResources } from "../../domain/resources";
 import { sortTopicsByLearningOrder } from "../../domain/planner";
@@ -288,6 +288,7 @@ export function DashboardPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [isSubmittingTopic, setIsSubmittingTopic] = useState(false);
   const [pendingLessonIds, setPendingLessonIds] = useState<string[]>([]);
+  const quickAddInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (data) {
@@ -426,7 +427,8 @@ export function DashboardPage() {
   }
 
   async function handleQuickAdd(): Promise<void> {
-    await importTopics(titleFromLines(newTopicInput));
+    const liveInputValue = quickAddInputRef.current?.value ?? newTopicInput;
+    await importTopics(titleFromLines(liveInputValue));
   }
 
   async function handleRemoveTopic(topicId: string): Promise<void> {
@@ -481,6 +483,7 @@ export function DashboardPage() {
         </label>
         <input
           id="quick-add-topic"
+          ref={quickAddInputRef}
           className="quick-add-inline-input"
           value={newTopicInput}
           onChange={(event) => setNewTopicInput(event.target.value)}
