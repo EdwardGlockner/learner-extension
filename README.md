@@ -48,6 +48,12 @@ Firefox:
 npm run build:firefox
 ```
 
+All browser targets:
+
+```bash
+npm run build:all
+```
+
 ## `> load in firefox`
 
 ```text
@@ -86,7 +92,10 @@ npm run dev
 npm run typecheck
 npm run test
 npm run build
+npm run build:edge
+npm run build:opera
 npm run build:firefox
+npm run build:all
 ```
 
 ## `> structure`
@@ -104,3 +113,13 @@ tests/            planner + settings tests
 ## `> repo`
 
 [github.com/EdwardGlockner/learner-extension](https://github.com/EdwardGlockner/learner-extension)
+
+## `> browser artifacts`
+
+```text
+dist/            latest single-target build
+builds/chrome/   Chrome-compatible artifact
+builds/edge/     Edge-compatible artifact
+builds/opera/    Opera-compatible artifact
+builds/firefox/  Firefox-compatible artifact
+```

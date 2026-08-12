@@ -27,10 +27,16 @@ export async function openExtensionPopupWindow(
   width = 560,
   height = 760
 ): Promise<void> {
-  await browserApi.windows.create({
-    url: browserApi.runtime.getURL(path),
-    type: "popup",
-    width,
-    height
-  });
+  const url = browserApi.runtime.getURL(path);
+
+  try {
+    await browserApi.windows.create({
+      url,
+      type: "popup",
+      width,
+      height
+    });
+  } catch {
+    await browserApi.tabs.create({ url });
+  }
 }

@@ -140,17 +140,25 @@ function fallbackResources(topic: Topic): ResourceLink[] {
   const searchQuery = encodeURIComponent(topic.title.trim());
   const normalizedTitle = normalizeTitle(topic.title);
   const wikipediaSlug = encodeURIComponent(topic.title.trim().replace(/\s+/g, "_"));
+  const topicWordCount = normalizedTitle.split(" ").length;
+  const canGuessWikipediaPage =
+    topicWordCount <= 3 &&
+    !/\b(llm|gpt|rag|rlhf|sota|foundation|agent|course|google|embedding|multimodal)\b/i.test(topic.title);
   const looksResearchHeavy =
     /(llm|transformer|diffusion|embedding|multimodal|latent|vae|cnn|vit|resnet|architecture|optimizer|loss|manifold|hypersphere|representation|rlhf|rag|attention|foundation model|inference|benchmark|scaling|training)/i.test(
       topic.title
     ) ||
     topic.category === "research-concepts";
   const genericResources: ResourceLink[] = [
-    {
-      title: `${topic.title} on Wikipedia`,
-      url: `https://en.wikipedia.org/wiki/${wikipediaSlug}`,
-      source: "article"
-    },
+    ...(canGuessWikipediaPage
+      ? [
+          {
+            title: `${topic.title} on Wikipedia`,
+            url: `https://en.wikipedia.org/wiki/${wikipediaSlug}`,
+            source: "article" as const
+          }
+        ]
+      : []),
     {
       title: `${topic.title} web results`,
       url: `https://duckduckgo.com/?q=${searchQuery}`,
@@ -189,8 +197,6 @@ const resourceReachabilityCache = new Map<string, boolean>();
 function normalizeResourceTitle(title: string): string {
   return normalizeTitle(title)
     .replace(/\bon wikipedia\b/g, "")
-    .replace(/\bpaper[s]?\b/g, "")
-    .replace(/\bweb results\b/g, "")
     .trim();
 }
 

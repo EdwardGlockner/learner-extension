@@ -8,7 +8,10 @@
     "dev": "vite build --watch --mode development",
     "build": "vite build && node scripts/write-manifest.mjs chrome",
     "build:chrome": "vite build && node scripts/write-manifest.mjs chrome",
+    "build:edge": "vite build && node scripts/write-manifest.mjs edge",
+    "build:opera": "vite build && node scripts/write-manifest.mjs opera",
     "build:firefox": "vite build && node scripts/write-manifest.mjs firefox",
+    "build:all": "vite build && node scripts/write-manifest.mjs chrome && node scripts/write-manifest.mjs edge && node scripts/write-manifest.mjs opera && node scripts/write-manifest.mjs firefox",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
