@@ -12,19 +12,15 @@ A compact WebExtensions MV3 learning tool that turns your own learning list into
 
 ## `> overview`
 
-```text
-ui         React + TypeScript
-runtime    WebExtensions MV3
-build      Vite
-providers  Ollama / Gemini / OpenAI
-default    Ollama + qwen2.5:3b
-```
+`learning-plugin` is a browser extension for keeping a personal learning list and having the next lessons scheduled and presented for you automatically.
 
 - keeps your personal topic queue locally
 - schedules the next lessons with lightweight prerequisite logic
 - shows 2 visible lesson cards at a time
 - generates cards with a local or hosted LLM
 - stores history, settings, and reminders locally
+- supports `Ollama`, `Gemini`, and `OpenAI`
+- defaults to local `Ollama` with `qwen2.5:3b`
 
 ## `> quick start`
 
