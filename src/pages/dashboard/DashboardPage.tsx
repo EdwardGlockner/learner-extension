@@ -409,7 +409,7 @@ export function DashboardPage() {
     !visibleCardSlots.length &&
     (loading || generating || isSubmittingTopic);
 
-  async function importTopics(titles: string[]): Promise<void> {
+  async function importTopics(titles: string[], submittedInputValue?: string): Promise<void> {
     if (!titles.length) {
       return;
     }
@@ -418,7 +418,13 @@ export function DashboardPage() {
 
     try {
       const result = await sendBackgroundMessage({ type: "topics/import", titles });
-      setNewTopicInput("");
+      setNewTopicInput((currentValue) => {
+        if (!submittedInputValue) {
+          return "";
+        }
+
+        return currentValue === submittedInputValue ? "" : currentValue;
+      });
       setData(result.dashboard);
       setToast(result.createdCount ? "Topic added" : "Already exists");
     } finally {
@@ -428,7 +434,7 @@ export function DashboardPage() {
 
   async function handleQuickAdd(): Promise<void> {
     const liveInputValue = quickAddInputRef.current?.value ?? newTopicInput;
-    await importTopics(titleFromLines(liveInputValue));
+    await importTopics(titleFromLines(liveInputValue), liveInputValue);
   }
 
   async function handleRemoveTopic(topicId: string): Promise<void> {
