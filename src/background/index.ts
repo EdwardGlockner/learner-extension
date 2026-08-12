@@ -9,6 +9,7 @@ import {
   ensureDashboardData,
   loadDashboardData,
   openDashboard,
+  removeTopic,
   startDashboardGeneration,
   validateProviderConnection,
   refreshLesson,
@@ -159,6 +160,8 @@ browserApi.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
         createdCount: (await importTopics(message.titles)).addedCount,
         dashboard: await loadDashboardData()
       };
+    case "topics/remove":
+      return removeTopic(message.topicId);
     default:
       return undefined;
   }

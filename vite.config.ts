@@ -14,7 +14,6 @@ export default defineConfig({
       input: {
         about: new URL("./about.html", import.meta.url).pathname,
         dashboard: new URL("./dashboard.html", import.meta.url).pathname,
-        manage: new URL("./manage.html", import.meta.url).pathname,
         history: new URL("./history.html", import.meta.url).pathname,
         options: new URL("./options.html", import.meta.url).pathname,
         background: new URL("./src/background/index.ts", import.meta.url).pathname

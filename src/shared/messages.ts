@@ -10,7 +10,8 @@ export type BackgroundMessage =
   | { type: "settings/reschedule-reminder" }
   | { type: "provider/validate" }
   | { type: "notifications/test" }
-  | { type: "topics/import"; titles: string[] };
+  | { type: "topics/import"; titles: string[] }
+  | { type: "topics/remove"; topicId: string };
 
 export interface MessagePayloads {
   "dashboard/load": DashboardData;
@@ -22,4 +23,5 @@ export interface MessagePayloads {
   "provider/validate": ProviderValidationResult;
   "notifications/test": { success: boolean; message: string };
   "topics/import": { createdCount: number; dashboard: DashboardData };
+  "topics/remove": DashboardData;
 }

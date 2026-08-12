@@ -6,6 +6,26 @@ type ResourceRule = {
   resources: ResourceLink[];
 };
 
+const VALIDATED_RESOURCE_HOSTS = [
+  "en.wikipedia.org",
+  "arxiv.org",
+  "duckduckgo.com",
+  "platform.openai.com",
+  "huggingface.co",
+  "python.langchain.com",
+  "langchain-ai.github.io",
+  "modelcontextprotocol.io",
+  "spec.modelcontextprotocol.io",
+  "docs.docker.com",
+  "kubernetes.io",
+  "cloud.google.com",
+  "docs.nginx.com",
+  "docs.vllm.ai",
+  "www.w3.org",
+  "developer.mozilla.org",
+  "www.anthropic.com"
+] as const;
+
 const rules: ResourceRule[] = [
   {
     match: /\battention\b/i,
@@ -237,7 +257,7 @@ export function getCuratedResources(topic: Topic, generated: ResourceLink[] = []
   const curated = rules
     .filter((rule) => rule.match.test(topic.title))
     .flatMap((rule) => rule.resources);
-  const combined = [...curated, ...generated, ...fallbackResources(topic)];
+  const combined = [...curated, ...fallbackResources(topic), ...generated];
   const seen = new Set<string>();
 
   return combined.filter((resource) => {
@@ -261,6 +281,15 @@ export function getCuratedResources(topic: Topic, generated: ResourceLink[] = []
     seen.add(titleTopicKey);
     return true;
   }).slice(0, 3);
+}
+
+function canValidateResourceUrl(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, "www.");
+    return VALIDATED_RESOURCE_HOSTS.includes(hostname as (typeof VALIDATED_RESOURCE_HOSTS)[number]);
+  } catch {
+    return false;
+  }
 }
 
 async function urlResponds(url: string): Promise<boolean> {
@@ -316,7 +345,9 @@ export async function filterReachableResources(resources: ResourceLink[]): Promi
       continue;
     }
 
-    if (await urlResponds(resource.url)) {
+    if (!canValidateResourceUrl(resource.url)) {
+      validResources.push(resource);
+    } else if (await urlResponds(resource.url)) {
       validResources.push(resource);
     }
 

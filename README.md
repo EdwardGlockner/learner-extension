@@ -60,7 +60,17 @@ npm run build:all
 1. run npm run build:firefox
 2. open about:debugging#/runtime/this-firefox
 3. click "Load Temporary Add-on"
-4. choose dist/manifest.json
+4. choose builds/firefox/manifest.json
+```
+
+## `> load in chrome`
+
+```text
+1. run npm run build
+2. open chrome://extensions or your browser's extensions page
+3. enable Developer mode
+4. click "Load unpacked"
+5. choose builds/chrome/
 ```
 
 ## `> ollama`
@@ -107,7 +117,7 @@ src/pages/        dashboard, settings, history, about
 src/providers/    Ollama / Gemini / OpenAI adapters
 src/storage/      local state + migrations
 src/styles/       terminal-themed UI
-tests/            planner + settings tests
+tests/            planner, resources, settings, migration tests
 ```
 
 ## `> repo`

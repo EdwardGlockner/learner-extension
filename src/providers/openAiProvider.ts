@@ -11,6 +11,30 @@ interface OpenAiResponse {
   }>;
 }
 
+interface OpenAiErrorResponse {
+  error?: {
+    message?: string;
+    type?: string;
+    code?: string;
+  };
+}
+
+function formatOpenAiError(status: number, raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as OpenAiErrorResponse;
+    const message = parsed.error?.message?.replace(/\s+/g, " ").trim();
+
+    if (message) {
+      return `Connection failed (${status}). ${message}`;
+    }
+  } catch {
+    // Fall back to a compact plain-text version below.
+  }
+
+  const compact = raw.replace(/\s+/g, " ").trim();
+  return compact ? `Connection failed (${status}). ${compact}` : `Connection failed (${status}).`;
+}
+
 export const openAiProvider: LessonProvider = {
   id: "openai",
   label: "OpenAI",
@@ -44,10 +68,9 @@ export const openAiProvider: LessonProvider = {
     });
 
     if (!response.ok) {
-      const message = await response.text();
       return {
         ok: false,
-        message: `Connection failed (${response.status}). ${message}`
+        message: formatOpenAiError(response.status, await response.text())
       };
     }
 
@@ -91,8 +114,7 @@ export const openAiProvider: LessonProvider = {
     });
 
     if (!response.ok) {
-      const message = await response.text();
-      throw new Error(`OpenAI request failed (${response.status}): ${message}`);
+      throw new Error(formatOpenAiError(response.status, await response.text()));
     }
 
     const json = (await response.json()) as OpenAiResponse;

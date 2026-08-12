@@ -9,6 +9,20 @@ function formatDate(value?: string): string {
   return value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Not yet";
 }
 
+function excerptText(value: string, maxLength = 220): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength).trimEnd()}...`;
+}
+
+function formatLessonStatus(status: string): string {
+  return status.replace(/-/g, " ");
+}
+
 export function HistoryPage() {
   const { state, loading, error } = useStoredState();
 
@@ -59,7 +73,7 @@ export function HistoryPage() {
           <p className="mini-label">Completion log</p>
           <h2>Learned topics</h2>
           {learnedTopics.length ? (
-            <ul className="archive-list">
+            <ul className="archive-list archive-list-compact">
               {learnedTopics.map((topic) => (
                 <li key={topic.id} className="archive-item">
                   <div className="archive-header">
@@ -86,16 +100,45 @@ export function HistoryPage() {
                 const topic = topicsById.get(lesson.topicId);
                 return (
                   <li key={lesson.id} className="archive-item">
-                    <div className="archive-header">
-                      <div>
-                        <strong>{topic?.title ?? "Unknown topic"}</strong>
-                        <p className="helper-text">
-                          {formatDate(lesson.createdAt)} • {lesson.status}
-                        </p>
+                    <details className="history-lesson">
+                      <summary className="history-lesson-summary">
+                        <div className="archive-header">
+                          <div>
+                            <strong>{topic?.title ?? "Unknown topic"}</strong>
+                            <p className="helper-text">
+                              {formatDate(lesson.createdAt)} · {formatLessonStatus(lesson.status)}
+                            </p>
+                          </div>
+                          <div className="history-lesson-meta">
+                            <span className="pill">{lesson.providerId}</span>
+                            <span className="pill">{lesson.model}</span>
+                          </div>
+                        </div>
+                        <p className="history-lesson-preview">{excerptText(lesson.content.explanation)}</p>
+                      </summary>
+                      <div className="history-lesson-body">
+                        <section className="history-lesson-section">
+                          <p className="lesson-section-label">Summary</p>
+                          <p className="history-lesson-copy">{lesson.content.explanation}</p>
+                        </section>
+                        {lesson.content.whyItMatters ? (
+                          <section className="history-lesson-section">
+                            <p className="lesson-section-label">Why it matters</p>
+                            <p className="history-lesson-copy">{lesson.content.whyItMatters}</p>
+                          </section>
+                        ) : null}
+                        {lesson.content.examples.length ? (
+                          <section className="history-lesson-section">
+                            <p className="lesson-section-label">Examples</p>
+                            <ul className="lesson-bullets">
+                              {lesson.content.examples.map((example) => (
+                                <li key={example}>{example}</li>
+                              ))}
+                            </ul>
+                          </section>
+                        ) : null}
                       </div>
-                      <span className="pill">{lesson.providerId}</span>
-                    </div>
-                    <p>{lesson.content.explanation}</p>
+                    </details>
                   </li>
                 );
               })}

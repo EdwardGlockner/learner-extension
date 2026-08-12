@@ -72,9 +72,10 @@ export function AboutPage() {
 
       <section className="settings-card">
         <p className="mini-label">Providers</p>
-        <h2>Gemini or Ollama</h2>
+        <h2>Gemini, OpenAI, or Ollama</h2>
         <ul className="lesson-bullets">
           <li><strong>Gemini:</strong> easier hosted setup, but quotas can apply.</li>
+          <li><strong>OpenAI:</strong> hosted GPT models through an OpenAI API key from the developer platform.</li>
           <li><strong>Ollama:</strong> local generation on your machine, no hosted quota, but Ollama must be installed and running.</li>
         </ul>
       </section>

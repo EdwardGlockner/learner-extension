@@ -2,7 +2,7 @@ import { openExtensionPopupWindow, browserApi } from "../lib/browserApi";
 import { createId } from "../lib/id";
 import { getDateKey, nextReminderAt } from "../lib/time";
 import { filterReachableResources } from "../domain/resources";
-import { selectVisibleTopics, sortTopicsByLearningOrder } from "../domain/planner";
+import { selectVisibleTopics } from "../domain/planner";
 import { getProvider, isSelectedProviderConfigured } from "../providers";
 import { DASHBOARD_PATH, PROMPT_TEMPLATE_VERSION, REMINDER_ALARM_ID } from "../shared/constants";
 import type {
@@ -78,10 +78,6 @@ function touchTopics(topics: Topic[], selectedIds: string[]): Topic[] {
   );
 }
 
-function sameTopicIds(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
 function laterIsoDate(left?: string, right?: string): string | undefined {
   if (!left) {
     return right;
@@ -116,6 +112,21 @@ function mergeTouchedTopics(latestTopics: Topic[], touchedTopics: Topic[], touch
       updatedAt: laterIsoDate(topic.updatedAt, touchedTopic.updatedAt) ?? topic.updatedAt
     };
   });
+}
+
+function removeTopicArtifacts(state: ExtensionState, topicId: string): ExtensionState {
+  return {
+    ...state,
+    topics: state.topics
+      .filter((topic) => topic.id !== topicId)
+      .map((topic, index) => ({
+        ...topic,
+        prerequisites: topic.prerequisites.filter((dependencyId) => dependencyId !== topicId),
+        manuallyOrderedIndex: index
+      })),
+    lessons: state.lessons.filter((lesson) => lesson.topicId !== topicId || lesson.status === "learned"),
+    generationAttempts: state.generationAttempts.filter((attempt) => attempt.topicId !== topicId)
+  };
 }
 
 function mergeLessons(existingLessons: LessonGeneration[], newLessons: LessonGeneration[]): LessonGeneration[] {
@@ -390,6 +401,14 @@ export async function refreshLesson(topicId: string, dateKey = getDateKey()): Pr
   });
 
   return nextLesson;
+}
+
+export async function removeTopic(topicId: string, dateKey = getDateKey()): Promise<DashboardData> {
+  const currentState = await loadState();
+  const nextState = removeTopicArtifacts(currentState, topicId);
+
+  await replaceState(nextState);
+  return loadDashboardData(dateKey);
 }
 
 export async function updateLessonStatus(lessonId: string, status: LessonStatus): Promise<void> {

@@ -8,7 +8,7 @@ export function createInitialState(now = new Date().toISOString()): ExtensionSta
     dailyPlans: [],
     lessons: [],
     generationAttempts: [],
-    settings: DEFAULT_SETTINGS,
+    settings: structuredClone(DEFAULT_SETTINGS),
     initializedAt: now,
     updatedAt: now
   };

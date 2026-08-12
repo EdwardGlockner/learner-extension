@@ -6,4 +6,13 @@ describe("default settings", () => {
     const state = createInitialState("2026-03-19T09:00:00.000Z");
     expect(state.settings.reminders.enabled).toBe(false);
   });
+
+  it("creates isolated settings objects for each new state", () => {
+    const first = createInitialState("2026-03-19T09:00:00.000Z");
+    const second = createInitialState("2026-03-19T09:00:00.000Z");
+
+    first.settings.provider.selectedProvider = "gemini";
+
+    expect(second.settings.provider.selectedProvider).toBe("ollama");
+  });
 });

@@ -1,66 +1,7 @@
 import { browserApi } from "../lib/browserApi";
-import {
-  ADVANCED_DEFAULT_PROMPT_TEMPLATE_V1,
-  DEFAULT_SETTINGS,
-  DEFAULT_OLLAMA_MODEL,
-  INTERMEDIATE_DEFAULT_PROMPT_TEMPLATE,
-  LEGACY_OLLAMA_MODEL,
-  LEGACY_DEFAULT_PROMPT_TEMPLATE,
-  STORAGE_KEY,
-  STATE_VERSION
-} from "../shared/constants";
-import { createInitialState } from "../shared/seed";
-import type { AppSettings, DailyPlan, ExtensionState, LessonGeneration, Topic } from "../shared/types";
-
-function migrateState(input: ExtensionState | undefined): ExtensionState {
-  if (!input) {
-    return createInitialState();
-  }
-
-  if (input.version === STATE_VERSION) {
-    const nextPromptTemplate =
-      !input.settings.provider.promptTemplate ||
-      input.settings.provider.promptTemplate === LEGACY_DEFAULT_PROMPT_TEMPLATE ||
-      input.settings.provider.promptTemplate === INTERMEDIATE_DEFAULT_PROMPT_TEMPLATE ||
-      input.settings.provider.promptTemplate === ADVANCED_DEFAULT_PROMPT_TEMPLATE_V1
-        ? DEFAULT_SETTINGS.provider.promptTemplate
-        : input.settings.provider.promptTemplate;
-    const nextDifficultyPreference =
-      input.settings.provider.difficultyPreference === "mixed"
-        ? DEFAULT_SETTINGS.provider.difficultyPreference
-        : input.settings.provider.difficultyPreference;
-    const nextOllamaModel =
-      !input.settings.provider.ollamaModel || input.settings.provider.ollamaModel === LEGACY_OLLAMA_MODEL
-        ? DEFAULT_OLLAMA_MODEL
-        : input.settings.provider.ollamaModel;
-
-    return {
-      ...input,
-      generationAttempts: input.generationAttempts ?? [],
-      settings: {
-        ...input.settings,
-        provider: {
-          ...DEFAULT_SETTINGS.provider,
-          ...input.settings.provider,
-          selectedProvider: input.settings.provider.selectedProvider ?? DEFAULT_SETTINGS.provider.selectedProvider,
-          promptTemplate: nextPromptTemplate,
-          difficultyPreference: nextDifficultyPreference,
-          ollamaModel: nextOllamaModel
-        },
-        ui: {
-          ...createInitialState(input.initializedAt).settings.ui,
-          ...input.settings.ui
-        },
-        scheduling: {
-          ...input.settings.scheduling,
-          dailyTopicCount: 2
-        }
-      }
-    };
-  }
-
-  return createInitialState();
-}
+import { STORAGE_KEY } from "../shared/constants";
+import type { ExtensionState } from "../shared/types";
+import { migrateState } from "./migrateState";
 
 export async function loadState(): Promise<ExtensionState> {
   const stored = await browserApi.storage.local.get(STORAGE_KEY);
@@ -85,43 +26,6 @@ export async function saveState(state: ExtensionState): Promise<void> {
 
 export async function initializeStateIfNeeded(): Promise<ExtensionState> {
   return loadState();
-}
-
-export async function updateTopics(updater: (topics: Topic[]) => Topic[]): Promise<ExtensionState> {
-  const state = await loadState();
-  const topics = updater([...state.topics]);
-  const nextState = { ...state, topics };
-  await saveState(nextState);
-  return nextState;
-}
-
-export async function updateSettings(updater: (settings: AppSettings) => AppSettings): Promise<ExtensionState> {
-  const state = await loadState();
-  const settings = updater(state.settings);
-  const nextState = { ...state, settings };
-  await saveState(nextState);
-  return nextState;
-}
-
-export async function upsertDailyPlan(plan: DailyPlan): Promise<ExtensionState> {
-  const state = await loadState();
-  const dailyPlans = state.dailyPlans.filter((candidate) => candidate.dateKey !== plan.dateKey);
-  dailyPlans.push(plan);
-  const nextState = { ...state, dailyPlans: dailyPlans.sort((a, b) => a.dateKey.localeCompare(b.dateKey)) };
-  await saveState(nextState);
-  return nextState;
-}
-
-export async function upsertLesson(lesson: LessonGeneration): Promise<ExtensionState> {
-  const state = await loadState();
-  const lessons = state.lessons.filter((candidate) => candidate.id !== lesson.id);
-  lessons.push(lesson);
-  const nextState = {
-    ...state,
-    lessons: lessons.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-  };
-  await saveState(nextState);
-  return nextState;
 }
 
 export async function replaceState(nextState: ExtensionState): Promise<ExtensionState> {

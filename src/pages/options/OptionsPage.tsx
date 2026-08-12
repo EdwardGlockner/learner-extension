@@ -18,14 +18,7 @@ export function OptionsPage() {
   useEffect(() => {
     if (state) {
       applyTheme(state.settings.ui.theme);
-      setDraft({
-        ...state.settings,
-        provider: {
-          ...state.settings.provider,
-          selectedProvider:
-            state.settings.provider.selectedProvider === "gemini" ? "gemini" : "ollama"
-        }
-      });
+      setDraft(state.settings);
     }
   }, [state]);
 
@@ -48,7 +41,7 @@ export function OptionsPage() {
 
   const currentState = state;
   const currentDraft = draft;
-  const selectedProvider = currentDraft.provider.selectedProvider === "gemini" ? "gemini" : "ollama";
+  const selectedProvider = currentDraft.provider.selectedProvider ?? "ollama";
 
   async function handleSave(): Promise<void> {
     const nextState = {
@@ -119,11 +112,12 @@ export function OptionsPage() {
           >
             <option value="ollama">Ollama</option>
             <option value="gemini">Gemini</option>
+            <option value="openai">OpenAI / GPT</option>
           </select>
         </label>
         {selectedProvider === "gemini" ? (
           <label className="field">
-            <span>API key</span>
+            <span>Gemini API key</span>
             <input
               type="password"
               value={currentDraft.provider.geminiApiKey}
@@ -143,6 +137,50 @@ export function OptionsPage() {
               placeholder="AIza..."
             />
           </label>
+        ) : selectedProvider === "openai" ? (
+          <>
+            <label className="field">
+              <span>OpenAI API key</span>
+              <input
+                type="password"
+                value={currentDraft.provider.openAiApiKey}
+                onChange={(event) =>
+                  {
+                    setConnectionStatus(null);
+                    setDraft({
+                      ...currentDraft,
+                      provider: {
+                        ...currentDraft.provider,
+                        selectedProvider: "openai" as const,
+                        openAiApiKey: event.target.value
+                      }
+                    });
+                  }
+                }
+                placeholder="sk-..."
+              />
+            </label>
+            <label className="field">
+              <span>Model</span>
+              <input
+                value={currentDraft.provider.openAiModel}
+                onChange={(event) =>
+                  {
+                    setConnectionStatus(null);
+                    setDraft({
+                      ...currentDraft,
+                      provider: {
+                        ...currentDraft.provider,
+                        selectedProvider: "openai" as const,
+                        openAiModel: event.target.value
+                      }
+                    });
+                  }
+                }
+                placeholder="gpt-4.1-mini"
+              />
+            </label>
+          </>
         ) : (
           <>
             <label className="field">
@@ -212,7 +250,9 @@ export function OptionsPage() {
         <p className="compact-secondary">
           {selectedProvider === "ollama"
             ? `Run Ollama locally, then pull a model like "ollama pull ${DEFAULT_OLLAMA_MODEL}".`
-            : "Paste your Gemini API key here to generate lesson cards."}
+            : selectedProvider === "gemini"
+              ? "Paste your Gemini API key here to generate lesson cards."
+              : "Paste your OpenAI API key here to generate GPT lesson cards."}
         </p>
         {connectionStatus ? <p className="compact-secondary">{connectionStatus}</p> : null}
       </section>

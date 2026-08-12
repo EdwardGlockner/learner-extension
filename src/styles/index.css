@@ -234,6 +234,10 @@ select {
   grid-template-columns: minmax(320px, 1fr) minmax(380px, 1.15fr);
 }
 
+.history-grid {
+  grid-template-columns: 1fr;
+}
+
 .section-card {
   border-radius: 28px;
   padding: 22px;
@@ -534,6 +538,10 @@ select {
   gap: 12px;
 }
 
+.archive-list-compact {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .queue-item,
 .topic-list-item,
 .archive-item {
@@ -553,6 +561,11 @@ select {
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
+}
+
+.archive-header strong {
+  display: block;
+  margin-bottom: 4px;
 }
 
 .tags-row,
@@ -579,6 +592,51 @@ select {
 .helper-text {
   margin: 0;
   color: var(--text-soft);
+}
+
+.history-lesson {
+  display: grid;
+  gap: 12px;
+}
+
+.history-lesson-summary {
+  list-style: none;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+}
+
+.history-lesson-summary::-webkit-details-marker {
+  display: none;
+}
+
+.history-lesson-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.history-lesson-preview,
+.history-lesson-copy {
+  margin: 0;
+  line-height: 1.58;
+}
+
+.history-lesson-preview {
+  color: var(--text-soft);
+}
+
+.history-lesson-body {
+  display: grid;
+  gap: 14px;
+  padding-top: 2px;
+  border-top: 1px solid rgba(97, 255, 170, 0.08);
+}
+
+.history-lesson-section {
+  display: grid;
+  gap: 8px;
 }
 
 .empty-state {

@@ -8,7 +8,6 @@ import { applyTheme } from "../../lib/theme";
 import { titleFromLines } from "../../lib/strings";
 import { CATEGORY_LABELS } from "../../shared/constants";
 import type { LessonGeneration, Topic } from "../../shared/types";
-import { loadState, replaceState } from "../../storage/state";
 import { EmptyState } from "../../ui/components/EmptyState";
 import { useDashboardData } from "../../ui/hooks/useDashboardData";
 
@@ -283,7 +282,7 @@ function LoadingCard({ topic }: { topic: Topic }) {
 }
 
 export function DashboardPage() {
-  const { data, setData, loading, generating, error, reload, regenerateLesson, updateLessonStatus } =
+  const { data, setData, loading, generating, error, regenerateLesson, updateLessonStatus } =
     useDashboardData();
   const [newTopicInput, setNewTopicInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
@@ -409,9 +408,7 @@ export function DashboardPage() {
     !visibleCardSlots.length &&
     (loading || generating || isSubmittingTopic);
 
-  async function handleQuickAdd(): Promise<void> {
-    const titles = titleFromLines(newTopicInput);
-
+  async function importTopics(titles: string[]): Promise<void> {
     if (!titles.length) {
       return;
     }
@@ -428,19 +425,14 @@ export function DashboardPage() {
     }
   }
 
-  async function handleRemoveTopic(topicId: string): Promise<void> {
-    const currentState = await loadState();
-    const nextTopics = currentState.topics
-      .filter((topic) => topic.id !== topicId)
-      .map((topic, index) => ({
-        ...topic,
-        prerequisites: topic.prerequisites.filter((dependencyId) => dependencyId !== topicId),
-        manuallyOrderedIndex: index
-      }));
+  async function handleQuickAdd(): Promise<void> {
+    await importTopics(titleFromLines(newTopicInput));
+  }
 
-    await replaceState({ ...currentState, topics: nextTopics });
+  async function handleRemoveTopic(topicId: string): Promise<void> {
+    const nextData = await sendBackgroundMessage({ type: "topics/remove", topicId });
+    setData(nextData);
     setToast("Topic removed");
-    await reload();
   }
 
   async function handleFinishLesson(lessonId: string): Promise<void> {
@@ -492,6 +484,17 @@ export function DashboardPage() {
           className="quick-add-inline-input"
           value={newTopicInput}
           onChange={(event) => setNewTopicInput(event.target.value)}
+          onPaste={(event) => {
+            const pastedText = event.clipboardData.getData("text");
+            const pastedTitles = titleFromLines(pastedText);
+
+            if (pastedTitles.length <= 1) {
+              return;
+            }
+
+            event.preventDefault();
+            void importTopics(pastedTitles);
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault();
