@@ -63,7 +63,7 @@ export function HistoryPage() {
             &lt;
           </button>
           <div>
-            <p className="mini-label">learning-plugin</p>
+            <p className="mini-label">learner-extension</p>
             <h1>History</h1>
           </div>
         </div>

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "learning-plugin",
+  "name": "learner-extension",
   "description": "Learn a little every day from your own topic queue with daily lesson cards.",
   "version": "0.1.0",
   "minimum_chrome_version": "114",
@@ -11,7 +11,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Open learning-plugin"
+    "default_title": "Open learner-extension"
   },
   "background": {
     "service_worker": "background.js",

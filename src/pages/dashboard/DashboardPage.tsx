@@ -461,7 +461,7 @@ export function DashboardPage() {
     <div className={`popup-shell ${state.settings.ui.popupScale === "large" ? "popup-shell-large" : "popup-shell-standard"}`}>
       {toast ? <div className="toast-banner">{toast}</div> : null}
       <header className="popup-header">
-        <p className="mini-label">learning-plugin</p>
+        <p className="mini-label">learner-extension</p>
           <div className="compact-actions">
             <button type="button" className="button button-ghost" onClick={() => navigateCurrentExtensionPage("history.html")}>
               History

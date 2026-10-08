@@ -38,7 +38,7 @@ export function AboutPage() {
             &lt;
           </button>
           <div>
-            <p className="mini-label">learning-plugin</p>
+            <p className="mini-label">learner-extension</p>
             <h1>About</h1>
           </div>
         </div>

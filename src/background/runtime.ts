@@ -533,13 +533,13 @@ export async function sendReminderNotification(force = false): Promise<{ success
   }
 
   try {
-    await browserApi.notifications.create("learning-plugin-reminder", {
+    await browserApi.notifications.create("learner-extension-reminder", {
       type: "basic",
       iconUrl: browserApi.runtime.getURL("icons/icon128.png"),
-      title: force ? "learning-plugin test reminder" : "Your learning cards are ready",
+      title: force ? "learner-extension test reminder" : "Your learning cards are ready",
       message: force
         ? "Notifications are working."
-        : `You have ${visibleTopicIds.length} topics ready in learning-plugin.`
+        : `You have ${visibleTopicIds.length} topics ready in learner-extension.`
     });
     await setReminderStatus("sent");
     return {

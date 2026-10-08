@@ -1,4 +1,4 @@
-# `learning-plugin`
+# `learner-extension`
 
 ```text
 > add things you want to learn
@@ -8,11 +8,11 @@
 
 A compact WebExtensions MV3 learning tool that turns your own learning list into scheduled lesson cards.
 
-![learning-plugin demo](docs/demo.gif)
+![learner-extension demo](docs/demo.gif)
 
 ## `> overview`
 
-`learning-plugin` is a browser extension for keeping a personal learning list and having the next lessons scheduled and presented for you automatically.
+`learner-extension` is a browser extension for keeping a personal learning list and having the next lessons scheduled and presented for you automatically.
 
 - keeps your personal topic queue locally
 - schedules the next lessons with lightweight prerequisite logic
